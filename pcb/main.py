@@ -12,7 +12,6 @@ from autoee_components.skytraq import S1315F8_RAW
 from autoee_components.skyworks import AAT3221
 from autoee_components._4ucon import _11029
 from autoee_components.molex import _0732511150
-from autoee_components import mounting_hole
 from autoee_components.copal_electronics.CL_SB import CL_SB_22A_12
 from autoee_components.murata_electronics import BLM15G
 from autoee_components.laird_technologies import BMI_S_203
@@ -22,6 +21,7 @@ from autoee_components.bosch_sensortec import BNO055
 from autoee_components.measurement_specialties import MS5611_01BA03
 from autoee_components.header import make_header
 from autoee_components.stmicroelectronics import STM32F103
+from autoee_components.fci import _10118194_0001LF
 
 microstrip_width = 0.01198*INCH
 
@@ -41,9 +41,6 @@ connector = _11029.make_11029('gnd cts vcc5 txd rxd rts'.split(' '))
 @util.listify
 def main():
     gnd = Net('gnd')
-    
-    for i in xrange(2):
-        yield mounting_hole.mounting_hole('M' + str(i+1))
     
     # BATTERY
     
@@ -109,17 +106,12 @@ def main():
         RX2=gps_rx,
     )
     
-    ant2 = Net('ant2')
-    yield _0732511150._0732511150(center_pad_width=microstrip_width)('P6',
-        CENTER=ant2,
-        SHIELD=gnd,
-    )
     yield S1315F8_RAW.S1315F8_RAW('U2',
         GND=gnd,
         AGND=gnd,
         VBAT=vin_a,
         VCC33=vin_a,
-        RFIN=ant2,
+        RFIN=ant1,
         TXD0=gps_tx,
         RXD0=gps_rx,
     )
@@ -190,6 +182,17 @@ def main():
     # OSCILLATOR
     
     # XXX
+    
+    # USB
+    
+    yield _10118194_0001LF._10118194_0001LF('P7',
+        #VCC=vusb,
+        #Dm=usb.Dm,
+        #Dp=usb.Dp,
+        #ID floats to designate slave
+        GND=gnd,
+        SHIELD=Net('usb_shield'),
+    )
     
     # MICROCONTROLLER
     
