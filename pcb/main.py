@@ -22,6 +22,10 @@ from autoee_components.measurement_specialties import MS5611_01BA03
 from autoee_components.header import make_header
 from autoee_components.stmicroelectronics import STM32F103
 from autoee_components.fci import _10118194_0001LF
+from autoee_components.toshiba import SSM3K15AFS
+from autoee_components.silicon_labs import Si501
+from autoee_components.hirose import U_FL
+from autoee_components.lite_on import LTST_C19HE1WT
 
 microstrip_width = 0.01198*INCH
 
@@ -43,7 +47,6 @@ def main():
     gnd = Net('gnd')
     
     # BATTERY
-    
     vbat = Net('vbat'); VBAT_MAX = 4.2
     yield PH.S2B_PH_SM4_TB(['P', 'N'])('P3',
         P=vbat,
@@ -51,19 +54,18 @@ def main():
         MECHANICAL=gnd,
     )
     
-    # REGULATOR
-    
+    # REGULATOR & POWER SWITCH
     vcc3_3_enable = Net('vcc3_3_enable')
-    yield resistor(10e3)('R1', A=vbat, B=vcc3_3_enable)
+    yield resistor(1e6)('R1', A=vbat, B=vcc3_3_enable)
     yield capacitor(1e-6)('R2', A=vcc3_3_enable, B=gnd)
     vcc3_3_enable_pulldown = Net('vcc3_3_enable_pulldown')
-    #yield mosfet('Q1', D=vcc3_3_enable, G=vcc3_3_enable_pulldown, S=gnd) XXX
+    yield resistor(10e3)('R7', A=vcc3_3_enable_pulldown, B=gnd)
+    yield SSM3K15AFS.SSM3K15AFS_LF('Q1', D=vcc3_3_enable, G=vcc3_3_enable_pulldown, S=gnd)
     
     vcc3_3 = Net('v3.3')
     yield AAT3221.linear('REG_', VBAT_MAX, 3.3, vbat, gnd, vcc3_3, enable=vcc3_3_enable)
     
     # UART CONNECTOR
-    
     port_cts = Net('port_cts')
     port_txd = Net('port_txd')
     port_rxd = Net('port_rxd')
@@ -76,17 +78,18 @@ def main():
         rts=port_rts,
     )
     
-    # GPS RECEIVER
-    
+    # GPS RECEIVER & ANTENNA CONNECTORS
     gps_tx = Net('gps_tx')
     gps_rx = Net('gps_rx')
     
-    # XXX 5V antenna power? bias tee?
-    
     ant1 = Net('ant1')
-    yield _0732511150._0732511150(center_pad_width=microstrip_width)('P2',
+    yield _0732511150._0732511150(center_pad_width=microstrip_width*1.5)('P2',
         CENTER=ant1,
         SHIELD=gnd,
+    )
+    yield U_FL.U_FL_R_SMT_01_('P8',
+        SIG=ant1,
+        GND=gnd,
     )
     vin_a = Net('vin_a')
     yield BLM15G.BLM15GG471SN1D('FB1', A=vcc3_3, B=vin_a)
@@ -116,9 +119,22 @@ def main():
         RXD0=gps_rx,
     )
     
+    
+    # RF SHIELD
     yield BMI_S_203.BMI_S_203('SH', GND=gnd)
     
     # STATUS LED
+    status_led_anode = Net('status_led_anode')
+    status_led_red_cathode = Net('status_led_red_cathode')
+    status_led_green_cathode = Net('status_led_green_cathode')
+    status_led_blue_cathode = Net('status_led_blue_cathode')
+    yield resistor(50e-3)('R8', A=vcc3_3, B=status_led_anode)
+    yield LTST_C19HE1WT.LTST_C19HE1WT('L1',
+        A=status_led_anode,
+        CR=status_led_red_cathode,
+        CG=status_led_green_cathode,
+        CB=status_led_blue_cathode,
+    )
     
     # AHRS
     ahrs_i2c = harnesses.I2CBus.new('ahrs_i2c_')
@@ -163,9 +179,7 @@ def main():
         SCLK=baro_spi.SCLK,
     )
     
-    
     # SD CARD
-    
     sd_spi = harnesses.SPIBus.new('sd_spi_')
     sd_spi_nCS = Net('sd_spi_nCS')
     yield _101_00660._101_00660_68_6('P4',
@@ -180,25 +194,34 @@ def main():
     )
     
     # OSCILLATOR
+    XTALIN = Net('XTALIN')
+    yield capacitor(0.1e-6)('U6C1', A=vcc3_3, B=gnd)
+    yield Si501._501ABA8M00000DAF('U6',
+        #OE
+        GND=gnd,
+        CLK=XTALIN,
+        VDD=vcc3_3,
+    )
     
-    # XXX
-    
-    # USB
-    
+    # USB port
+    usb = harnesses.USB.new('usb_')
+    usb_host_sense = Net('usb_host_sense')
+    usb_pullup = Net('usb_pullup')
+    yield resistor(1.5e3)('R6', A=usb_pullup, B=usb.Dp)
     yield _10118194_0001LF._10118194_0001LF('P7',
-        #VCC=vusb,
-        #Dm=usb.Dm,
-        #Dp=usb.Dp,
+        VCC=usb_host_sense,
+        Dm=usb.Dm,
+        Dp=usb.Dp,
         #ID floats to designate slave
         GND=gnd,
         SHIELD=Net('usb_shield'),
     )
     
-    # MICROCONTROLLER
-    
+    # MICROCONTROLLER & DEBUG PORT
     uc_SWCLK = Net('uc_SWCLK')
     uc_SWDIO = Net('uc_SWDIO')
-    uc_NRST = Net('uc_NRST') # XXX pullup?
+    uc_NRST = Net('uc_NRST')
+    yield resistor(10e3)('R5', A=vcc3_3, B=uc_NRST)
     uc_SWO = Net('uc_SWO')
     yield make_header('VREF SWCLK GND SWDIO NRST SWO'.split(' '))('P5',
         VREF=vcc3_3,
@@ -209,37 +232,44 @@ def main():
         SWO=uc_SWO,
     )
     
-    # XXX decoupling
+    for i in xrange(5):
+        yield capacitor(0.1e-6)('U5C%i'%i, A=vcc3_3, B=gnd)
     yield STM32F103.STM32F103CBT7('U5',
         VSS=gnd, VSSA=gnd,
-        VDD=vcc3_3, VDDA=vcc3_3,
+        VDD=vcc3_3, VDDA=vcc3_3, VBAT=vcc3_3,
         
-        #PD0 # OSC_IN # XXX
+        PD0=XTALIN, # OSC_IN
         NRST=uc_NRST,
         
-        PA0=vbat, # ADC12_IN0 XXX resistor divider
+        #PA4=vbat_divided, # ADC12_IN4
         
-        PA2=gps_rx, # USART2_TX
-        PA3=gps_tx, # USART2_RX
+        PA2=port_rxd, # USART2_TX
+        PA3=port_txd, # USART2_RX
+        PA0=port_rts, # USART2_CTS
+        PA1=port_cts, # USART2_RTS
+
         
-        PA4=baro_spi_nCS, # SPI1_NSS
-        PA5=baro_spi.SCLK, # SPI1_SCK
-        PA6=baro_spi.MISO, # SPI1_MISO
-        PA7=baro_spi.MOSI, # SPI1_MOSI
+        PA15=sd_spi_nCS, # SPI1_NSS
+        PB3=sd_spi.SCLK, # SPI1_SCK
+        PB4=sd_spi.MISO, # SPI1_MISO
+        PB5=sd_spi.MOSI, # SPI1_MOSI
         
         PB2=ahrs_int,
         PB10=ahrs_i2c.SCL, # I2C2_SCL
         PB11=ahrs_i2c.SDA, # I2C2_SDA
         
-        PB12=sd_spi_nCS, # SPI2_NSS
-        PB13=sd_spi.SCLK, # SPI2_SCK
-        PB14=sd_spi.MISO, # SPI2_MISO
-        PB15=sd_spi.MOSI, # SPI2_MOSI
+        PB12=baro_spi_nCS, # SPI2_NSS
+        PB13=baro_spi.SCLK, # SPI2_SCK
+        PB14=baro_spi.MISO, # SPI2_MISO
+        PB15=baro_spi.MOSI, # SPI2_MOSI
         
-        PA9 =port_rxd, # USART1_TX
-        PA10=port_txd, # USART1_RX
-        PA11=port_rts, # USART1_CTS
-        PA12=port_cts, # USART1_RTS
+        PA9 =gps_rx, # USART1_TX
+        PA10=gps_tx, # USART1_RX
+        
+        PA8=usb_host_sense, # need to be 5V tolerant!
+        PA11=usb.Dm, # USBDM
+        PA12=usb.Dp, # USBDP
+        PB6=usb_pullup,
         
         #PB5=ahrs_int,
         #PB6=ahrs_i2c.SCL, # I2C1_SCL
@@ -247,10 +277,16 @@ def main():
         
         PA13=uc_SWDIO, # JTMS/SWDIO
         PA14=uc_SWCLK, # JTCK/SWCLK
-        PB3=uc_SWO, # TRACESWO
-        #PB4 # JNTRST XXX
+        #PB3=uc_SWO, # TRACESWO
+        #PB4 # JNTRST
+        
+        PB1=vcc3_3_enable_pulldown,
         
         BOOT0=gnd, # main flash memory
+        
+        PA6=status_led_red_cathode, # TIM3_CH1
+        PA7=status_led_green_cathode, # TIM3_CH2
+        PB0=status_led_blue_cathode, # TIM3_CH3
     )
 
 desc = main()
