@@ -232,8 +232,11 @@ def main():
         SWO=uc_SWO,
     )
     
-    for i in xrange(5):
+    for i in xrange(4):
         yield capacitor(0.1e-6)('U5C%i'%i, A=vcc3_3, B=gnd)
+    yield capacitor(4.7e-6)('U5C4', A=vcc3_3, B=gnd) # connect to VDD_3 (pin 48)
+    yield capacitor(10e-9)('U5C6', A=vcc3_3, B=gnd) # connect to VDDA (pin 9)
+    yield capacitor(1e-6)('U5C7', A=vcc3_3, B=gnd) # connect to VDDA (pin 9)
     yield STM32F103.STM32F103CBT7('U5',
         VSS=gnd, VSSA=gnd,
         VDD=vcc3_3, VDDA=vcc3_3, VBAT=vcc3_3,
