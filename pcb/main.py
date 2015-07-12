@@ -26,21 +26,13 @@ from autoee_components.toshiba import SSM3K15AFS
 from autoee_components.silicon_labs import Si501
 from autoee_components.hirose import U_FL
 from autoee_components.lite_on import LTST_C19HE1WT
+from autoee_components.toshiba import CUS520
 
 microstrip_width = 0.01198*INCH
 
 inductor = lambda *args, **kwargs: _inductor(*args, packages=frozenset({'0402 '}), **kwargs)
 resistor = lambda *args, **kwargs: _resistor(*args, packages=frozenset({'0402 '}), **kwargs)
 capacitor = lambda *args, **kwargs: _capacitor(*args, packages=frozenset({'0402 '}), **kwargs) # will create a problem for power filtering...
-
-# two color led for status
-#   slow blinking red - battery dead
-#   fast blinking red - SD card error
-#   slow blinking green - waiting for acquisition
-#   fast blinking green - acquired, recording
-
-
-connector = _11029.make_11029('gnd cts vcc5 txd rxd rts'.split(' '))
 
 @util.listify
 def main():
@@ -67,12 +59,16 @@ def main():
     
     # UART CONNECTOR
     port_cts = Net('port_cts')
+    port_vcc = Net('port_vcc')
     port_txd = Net('port_txd')
     port_rxd = Net('port_rxd')
     port_rts = Net('port_rts')
+    yield CUS520.CUS520_H3F('D1', A=vcc3_3, C=port_vcc)
+    connector = _11029.make_11029('gnd cts vcc txd rxd rts'.split(' '))
     yield connector('P1',
         gnd=gnd,
         cts=port_cts,
+        vcc=port_vcc,
         txd=port_txd,
         rxd=port_rxd,
         rts=port_rts,
@@ -124,6 +120,11 @@ def main():
     yield BMI_S_203.BMI_S_203('SH', GND=gnd)
     
     # STATUS LED
+    # two color led for status
+    #   slow blinking red - battery dead
+    #   fast blinking red - SD card error
+    #   slow blinking green - waiting for acquisition
+    #   fast blinking green - acquired, recording
     status_led_anode = Net('status_led_anode')
     status_led_red_cathode = Net('status_led_red_cathode')
     status_led_green_cathode = Net('status_led_green_cathode')
