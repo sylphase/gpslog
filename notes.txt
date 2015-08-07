@@ -1,0 +1,4 @@
+solder paste stencil needs wider openings on NV08C-CSM to reach pad
+remember to solder through-holes on USB connector
+missing labels for UART port pins
+next revision should have a way to charge the battery via USB
