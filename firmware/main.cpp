@@ -37,8 +37,10 @@ int main(void) {
     delay(1);
     set_led_color(LEDColor::BLUE);
     
+    printf("hello world!\r\n");
+    
     while (1) {
-        printf("hello world %f\r\n", measure_vdd());
+        printf("vdd: %f\r\n", measure_vdd());
         delay(0.1);
         
         if(hardware_get_battery_really_dead()) {

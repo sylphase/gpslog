@@ -7,12 +7,14 @@
 
 #include "time.h"
 
+#include "hardware.h"
+
 static uint8_t const DLE = 0x10;
 static uint8_t const ETX = 0x03;
 static uint8_t const CRC = 0xFF;
 
 static void send_command(uint8_t id, int length, uint8_t const *data) {
-    delay(0.5);
+    delay(0.1);
     usart_send_blocking(USART1, DLE);
     usart_send_blocking(USART1, id);
     for(int i = 0; i < length; i++) {
@@ -51,14 +53,18 @@ void gps_setup(void) {
     usart_enable(USART1);
     
     send_command(0x0e, 0, nullptr);
-    send_command(0xd7, 2, (uint8_t const []){0x02, 10});
+    send_command(0xd7, 2, (uint8_t const []){0x02, 10}); // 10 Hz
     send_command(0x27, 1, (uint8_t const []){1});
-
+    send_command(0x2a, 1, (uint8_t const []){1});
+    send_command(0x5c, 1, (uint8_t const []){1});
+    send_command(0xd5, 1, (uint8_t const []){1});
+    send_command(0xf4, 1, (uint8_t const []){1}); // 10 Hz
 }
 
 extern "C" {
 
 void usart1_isr(void) {
+    set_led_color(LEDColor::RED);
     if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
         char data = usart_recv(USART1);
