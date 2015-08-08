@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
@@ -41,13 +43,12 @@ void gps_setup(void) {
 
     /* Setup UART parameters. */
     usart_set_baudrate(USART1, 115200);
-    usart_set_databits(USART1, 8);
+    usart_set_databits(USART1, 9);
     usart_set_stopbits(USART1, USART_STOPBITS_1);
     usart_set_mode(USART1, USART_MODE_TX_RX);
     usart_set_parity(USART1, USART_PARITY_ODD);
     usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-
-    USART_CR1(USART1) |= USART_CR1_RXNEIE;
+    usart_enable_rx_interrupt(USART1);
 
     /* Finally enable the USART. */
     usart_enable(USART1);
@@ -68,7 +69,7 @@ void usart1_isr(void) {
     if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
         char data = usart_recv(USART1);
-        usart_send_blocking(USART2, data);
+        printf("%i\n", data);
     }
 }
 
