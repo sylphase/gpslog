@@ -65,7 +65,7 @@ bool hardware_get_battery_really_dead() {
 }
 
 void poweroff() {
-      cm_disable_interrupts();
+    cm_disable_interrupts();
     gpio_set(GPIOB, GPIO1);
     while(true) { }
 }

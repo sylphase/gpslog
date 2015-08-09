@@ -2,6 +2,7 @@
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/usart.h>
 
 #include "hardware.h"
 #include "time.h"
@@ -40,14 +41,19 @@ int main(void) {
     printf("hello world!\n");
     
     while (1) {
-        //printf("vdd: %f\n", measure_vdd());
-        delay(0.1);
+        //qprintf("vdd: %f\n", measure_vdd());
         
-        if(hardware_get_battery_really_dead()) {
+        uint8_t x;
+        if(serial_buf.read(x)) {
+            usart_send_blocking(USART1, x);
+            set_led_color(LEDColor::RED);
+        }
+        
+        /*if(hardware_get_battery_really_dead()) {
             set_led_color(LEDColor::RED);
             delay(0.001);
             poweroff();
-        }
+        }*/
     }
 
     return 0;
