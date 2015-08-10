@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
@@ -22,31 +23,40 @@ static void clock_setup(void) {
 int main(void) {
     clock_setup();
     hardware_init();
-    time_init();
     
-    set_led_color(LEDColor::RED); // draws current, decreasing the battery voltage slightly, purposely done before measuring
+    set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
+    
+    time_init();
+    serial_setup();
+    
     delay(0.0001); // wait for battery voltage to dip
-    if(hardware_get_battery_dead()) {
+    float vdd = measure_vdd();
+    printf("vdd: %f\n", vdd);
+    if(hardware_get_battery_dead(vdd)) {
         poweroff();
     }
     
-    set_led_color(LEDColor::GREEN); // stop showing red (red won't be visible at all)
+    while(true) {
+        double t = static_cast<double>(time_get_ticks()) / rcc_ahb_frequency;
+        double x = fmod(t, 10) / 10 * 2 * 3.14159;
+        set_led_color((.5*cos(x)+.5)/6, (.5*cos(x + 2 * 3.14159/3)+.5)/6, (.5*cos(x+2 * 3.14159/3*2)+.5)/6);
+    }
     
-    serial_setup();
+    set_led_color(0, 1, 0); // stop showing red (red won't be visible at all)
+    
     gps_setup();
     
     delay(1);
-    set_led_color(LEDColor::BLUE);
+    set_led_color(0, 0, 1);
     
     printf("hello world!\n");
     
     while (1) {
-        //qprintf("vdd: %f\n", measure_vdd());
         
         uint8_t x;
         if(serial_buf.read(x)) {
             usart_send_blocking(USART1, x);
-            set_led_color(LEDColor::RED);
+            set_led_color(1, 0, 0);
         }
         
         /*if(hardware_get_battery_really_dead()) {

@@ -1,18 +1,10 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/adc.h>
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/timer.h>
 #include <libopencm3/cm3/cortex.h>
 
 #include "hardware.h"
-
-void set_led_color(LEDColor x) {
-    gpio_set(GPIOA, GPIO6);
-    gpio_set(GPIOA, GPIO7);
-    gpio_set(GPIOB, GPIO0);
-    if(x == LEDColor::RED) gpio_clear(GPIOA, GPIO6);
-    if(x == LEDColor::GREEN) gpio_clear(GPIOA, GPIO7);
-    if(x == LEDColor::BLUE) gpio_clear(GPIOB, GPIO0);
-}
 
 static void adc_setup(void) {
     rcc_periph_reset_pulse(RST_ADC1); rcc_periph_clock_enable(RCC_ADC1);
@@ -46,21 +38,22 @@ static uint16_t read_adc_naiive(uint8_t channel) {
 
 static float sample_reference_averaged() {
     double res = 0;
-    for(int i = 0; i < 10; i++) res += read_adc_naiive(17)/4095.;
-    return res/10;
+    static int const COUNT = 10;
+    for(int i = 0; i < COUNT; i++) res += read_adc_naiive(17);
+    return res*(1./COUNT/4095);
 }
 
 float measure_vdd() {
     return 1.20/sample_reference_averaged();
 }
 
-bool hardware_get_battery_dead() {
-    double vdd_inf = 1.24/sample_reference_averaged();
+bool hardware_get_battery_dead(float vdd) {
+    double vdd_inf = 1.24/1.20*vdd;
     return vdd_inf < 3.3*.98;
 }
 
-bool hardware_get_battery_really_dead() {
-    double vdd_sup = 1.16/sample_reference_averaged();
+bool hardware_get_battery_really_dead(float vdd) {
+    double vdd_sup = 1.16/1.20*vdd;
     return vdd_sup < 3;
 }
 
@@ -70,18 +63,58 @@ void poweroff() {
     while(true) { }
 }
 
-void hardware_init() {
-    // status_led
-    gpio_set(GPIOA, GPIO6);
-    gpio_set(GPIOA, GPIO7);
-    gpio_set(GPIOB, GPIO0);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO6);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO7);
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO0);
+void set_led_color(double red, double green, double blue) {
+    red *= 0.6; // compensate for red LED being brighter
     
+    double sum = red + green + blue;
+    if(sum > 1) {
+        red /= sum;
+        green /= sum;
+        blue /= sum;
+    }
+    
+    timer_set_oc_value(TIM3, TIM_OC1, red*0xffff+.5);
+    timer_set_oc_value(TIM3, TIM_OC2, (red+green)*0xffff+.5);
+    timer_set_oc_value(TIM3, TIM_OC3, (1-blue)*0xffff+.5);
+}
+
+void hardware_init() {
     // vcc3_3_enable_pulldown
     gpio_clear(GPIOB, GPIO1);
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
     
     adc_setup();
+    
+    // status_led
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO6);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO7);
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO0);
+    
+    rcc_periph_reset_pulse(RST_TIM3); rcc_periph_clock_enable(RCC_TIM3);
+    timer_reset(TIM3);
+    timer_set_mode(TIM3, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
+    timer_set_prescaler(TIM3, 0);
+    timer_set_period(TIM3, 0xfffe);
+
+    timer_set_oc_mode(TIM3, TIM_OC1, TIM_OCM_PWM1);
+    timer_enable_oc_output(TIM3, TIM_OC1);
+    timer_set_oc_polarity_low(TIM3, TIM_OC1);
+    timer_disable_oc_preload(TIM3, TIM_OC1);
+
+    timer_set_oc_mode(TIM3, TIM_OC2, TIM_OCM_PWM1);
+    timer_enable_oc_output(TIM3, TIM_OC2);
+    timer_set_oc_polarity_low(TIM3, TIM_OC2);
+    timer_disable_oc_preload(TIM3, TIM_OC2);
+
+    timer_set_oc_mode(TIM3, TIM_OC3, TIM_OCM_PWM1);
+    timer_enable_oc_output(TIM3, TIM_OC3);
+    timer_set_oc_polarity_high(TIM3, TIM_OC3);
+    timer_disable_oc_preload(TIM3, TIM_OC3);
+
+    timer_update_on_overflow(TIM3);
+    
+    set_led_color(0, 0, 0);
+    
+    TIM3_EGR |= TIM_EGR_UG;
+    timer_enable_counter(TIM3);
 }
