@@ -16,31 +16,22 @@
         PB5=sd_spi.MOSI, # SPI1_MOSI
 */
 
-static uint8_t CMD_R1(uint8_t n, uint32_t argument, uint8_t crc=0) {
-    assert(n <= 63);
-    spi_xfer(SPI1, 0b01000000 | n);
-    spi_xfer(SPI1, (argument >> 24) & 255);
-    spi_xfer(SPI1, (argument >> 16) & 255);
-    spi_xfer(SPI1, (argument >>  8) & 255);
-    spi_xfer(SPI1, (argument >>  0) & 255);
-    spi_xfer(SPI1, (crc << 1) | 1);
-    uint16_t resp;
-    while(true) { // should abort after 8 bytes (N_CR)
-        resp = spi_xfer(SPI1, 0xFF);
-        if((resp & 0b10000000) == 0) {
-            break;
-        }
-    }
-    return resp;
-}
+static uint8_t CRC[256] = {0, 9, 18, 27, 36, 45, 54, 63, 72, 65, 90, 83, 108, 101, 126, 119, 25, 16, 11, 2, 61, 52, 47, 38, 81, 88, 67, 74, 117, 124, 103, 110, 50, 59, 32, 41, 22, 31, 4, 13, 122, 115, 104, 97, 94, 87, 76, 69, 43, 34, 57, 48, 15, 6, 29, 20, 99, 106, 113, 120, 71, 78, 85, 92, 100, 109, 118, 127, 64, 73, 82, 91, 44, 37, 62, 55, 8, 1, 26, 19, 125, 116, 111, 102, 89, 80, 75, 66, 53, 60, 39, 46, 17, 24, 3, 10, 86, 95, 68, 77, 114, 123, 96, 105, 30, 23, 12, 5, 58, 51, 40, 33, 79, 70, 93, 84, 107, 98, 121, 112, 7, 14, 21, 28, 35, 42, 49, 56, 65, 72, 83, 90, 101, 108, 119, 126, 9, 0, 27, 18, 45, 36, 63, 54, 88, 81, 74, 67, 124, 117, 110, 103, 16, 25, 2, 11, 52, 61, 38, 47, 115, 122, 97, 104, 87, 94, 69, 76, 59, 50, 41, 32, 31, 22, 13, 4, 106, 99, 120, 113, 78, 71, 92, 85, 34, 43, 48, 57, 6, 15, 20, 29, 37, 44, 55, 62, 1, 8, 19, 26, 109, 100, 127, 118, 73, 64, 91, 82, 60, 53, 46, 39, 24, 17, 10, 3, 116, 125, 102, 111, 80, 89, 66, 75, 23, 30, 5, 12, 51, 58, 33, 40, 95, 86, 77, 68, 123, 114, 105, 96, 14, 7, 28, 21, 42, 35, 56, 49, 70, 79, 84, 93, 98, 107, 112, 121};
 
-static uint8_t CMD_R3_or_R7(uint8_t n, uint32_t argument, uint32_t & ocr, uint8_t crc=0) {
+static uint8_t CMD(uint8_t n, uint32_t argument, uint32_t * ocr=nullptr) {
     assert(n <= 63);
-    spi_xfer(SPI1, 0b01000000 | n);
-    spi_xfer(SPI1, (argument >> 24) & 255);
-    spi_xfer(SPI1, (argument >> 16) & 255);
-    spi_xfer(SPI1, (argument >>  8) & 255);
-    spi_xfer(SPI1, (argument >>  0) & 255);
+    uint8_t crc = 0;
+#define SEND(b) { \
+    uint8_t _ = (b); \
+    spi_xfer(SPI1, _); \
+    crc = CRC[(crc << 1) ^ _]; \
+}
+    gpio_clear(GPIOA, GPIO15);
+    SEND(0b01000000 | n);
+    SEND((argument >> 24) & 255);
+    SEND((argument >> 16) & 255);
+    SEND((argument >>  8) & 255);
+    SEND((argument >>  0) & 255);
     spi_xfer(SPI1, (crc << 1) | 1);
     uint16_t resp;
     while(true) { // should abort after 8 bytes (N_CR)
@@ -49,11 +40,15 @@ static uint8_t CMD_R3_or_R7(uint8_t n, uint32_t argument, uint32_t & ocr, uint8_
             break;
         }
     }
-    ocr = 0;
-    for(int i = 0; i < 4; i++) {
-        ocr <<= 8;
-        ocr |= spi_xfer(SPI1, 0xFF);
+    if(ocr) {
+        *ocr = 0;
+        for(int i = 0; i < 4; i++) {
+            *ocr <<= 8;
+            *ocr |= spi_xfer(SPI1, 0xFF);
+        }
     }
+    gpio_set(GPIOA, GPIO15);
+    delay(1e-6);
     return resp;
 }
 
@@ -92,44 +87,24 @@ void sdcard_init() {
     
     for(int i = 0; i < (74+7)/8; i++) spi_xfer(SPI1, 0xFF);
     
-    gpio_clear(GPIOA, GPIO15);
-    assert(CMD_R1(0, 0, 0b1001010) == 1); // reset, in idle state now
-    gpio_set(GPIOA, GPIO15);
-    delay(1e-6);
+    assert(CMD(0, 0) == 1); // reset, in idle state now
     
-    gpio_clear(GPIOA, GPIO15);
-    uint32_t CMD8_aux;
     // XXX code after here only supports SD Ver.2
-    assert(CMD_R3_or_R7(8, 0x1AA, CMD8_aux, 0b1000011) == 1); // check voltage
+    uint32_t CMD8_aux; assert(CMD(8, 0x1AA, &CMD8_aux) == 1); // check voltage
     assert(CMD8_aux == 0x1AA);
-    gpio_set(GPIOA, GPIO15);
-    delay(1e-6);
     
-    gpio_clear(GPIOA, GPIO15);
-    assert(CMD_R1(55, 0) == 1); // ACMD prefix
-    gpio_set(GPIOA, GPIO15);
-    delay(1e-6);
+    assert(CMD(55, 0) == 1); // ACMD prefix
     
-    gpio_clear(GPIOA, GPIO15);
-    assert(CMD_R1(41, 0x40000000) == 1); // ACMD41(0x40000000)
-    gpio_set(GPIOA, GPIO15);
-    delay(1e-6);
+    assert(CMD(41, 0x40000000) == 1); // ACMD41(0x40000000)
     
-    gpio_clear(GPIOA, GPIO15);
-    uint32_t CMD58_aux;
-    assert(CMD_R3_or_R7(58, 0, CMD58_aux) == 1); // read ocr
-    gpio_set(GPIOA, GPIO15);
-    delay(1e-6);
+    uint32_t CMD58_aux; assert(CMD(58, 0, &CMD58_aux) == 1); // read ocr
     
     if(CMD58_aux & (1<<30)) {
         byte_addresses = false;
     } else {
         byte_addresses = true;
         
-        gpio_clear(GPIOA, GPIO15);
-        assert(CMD_R1(16, 0x200) == 1); // set block size to 512 bytes
-        gpio_set(GPIOA, GPIO15);
-        delay(1e-6);
+        assert(CMD(16, 0x200) == 1); // set block size to 512 bytes
     }
     
     printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
