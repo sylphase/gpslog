@@ -75,7 +75,7 @@ STYLECHECKFILES	:= $(shell find . -name '*.[ch]')
 
 LDSCRIPT	?= $(BINARY).ld
 
-OBJS		+= $(BINARY).o time.o hardware.o serial.o gps.o
+OBJS		+= $(BINARY).o time.o hardware.o serial.o gps.o sdcard.o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)

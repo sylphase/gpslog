@@ -9,14 +9,14 @@
 #include "time.h"
 #include "serial.h"
 #include "gps.h"
+#include "sdcard.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
     
-    /* Enable GPIOA, GPIOB, GPIOC clock. */
     rcc_periph_reset_pulse(RST_GPIOA); rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_reset_pulse(RST_GPIOB); rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_reset_pulse(RST_GPIOC); rcc_periph_clock_enable(RCC_GPIOC);
+    rcc_periph_reset_pulse(RST_AFIO); rcc_periph_clock_enable(RCC_AFIO);
 }
 
 
@@ -30,10 +30,12 @@ int main(void) {
     serial_setup();
     
     delay(0.0001); // wait for battery voltage to dip
-    float vdd = measure_vdd();
-    printf("vdd: %f\n", vdd);
-    if(hardware_get_battery_dead(vdd)) {
-        poweroff();
+    {
+        float vdd = measure_vdd();
+        printf("vdd: %f\n", vdd);
+        if(hardware_get_battery_dead(vdd)) {
+            poweroff();
+        }
     }
     
     /*
@@ -45,6 +47,8 @@ int main(void) {
     */
     
     set_led_color(0, 1, 0); // stop showing red (red won't be visible at all)
+    
+    sdcard_init();
     
     gps_setup();
     
