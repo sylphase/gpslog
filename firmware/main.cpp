@@ -36,11 +36,13 @@ int main(void) {
         poweroff();
     }
     
+    /*
     while(true) {
         double t = static_cast<double>(time_get_ticks()) / rcc_ahb_frequency;
         double x = fmod(t, 10) / 10 * 2 * 3.14159;
         set_led_color((.5*cos(x)+.5)/6, (.5*cos(x + 2 * 3.14159/3)+.5)/6, (.5*cos(x+2 * 3.14159/3*2)+.5)/6);
     }
+    */
     
     set_led_color(0, 1, 0); // stop showing red (red won't be visible at all)
     
@@ -51,19 +53,20 @@ int main(void) {
     
     printf("hello world!\n");
     
-    while (1) {
+    while(true) {
         
-        uint8_t x;
+        /*uint8_t x;
         if(serial_buf.read(x)) {
             usart_send_blocking(USART1, x);
             set_led_color(1, 0, 0);
-        }
+        }*/
         
-        /*if(hardware_get_battery_really_dead()) {
-            set_led_color(LEDColor::RED);
+        float vdd = measure_vdd();
+        if(hardware_get_battery_really_dead(vdd)) {
+            set_led_color(10, 0, 0);
             delay(0.001);
             poweroff();
-        }*/
+        }
     }
 
     return 0;

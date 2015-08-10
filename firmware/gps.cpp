@@ -68,7 +68,7 @@ void usart1_isr(void) {
     if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
         char data = usart_recv(USART1);
-        usart_send_blocking(USART2, data);
+        //usart_send_blocking(USART2, data);
     }
 }
 
