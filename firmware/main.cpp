@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <unistd.h>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
@@ -19,6 +20,27 @@ static void clock_setup(void) {
     rcc_periph_reset_pulse(RST_AFIO); rcc_periph_clock_enable(RCC_AFIO);
 }
 
+extern "C" {
+
+void _exit(int status) {
+    // called on assertion failure - blink red/green to indicate
+    // nothing here should depend on interrupts ... since we might have been servicing an interrupt
+    while(true) {
+        set_led_color(10, 0, 0);
+        delay(.25); // time stuff normally uses interrupts, but will work (kinda) if interrupts aren't working
+        set_led_color(0, 10, 0);
+        delay(.25);
+        
+        float vdd = measure_vdd();
+        if(hardware_get_battery_really_dead(vdd)) {
+            set_led_color(10, 0, 0);
+            delay(0.001);
+            poweroff();
+        }
+    }
+}
+
+}
 
 int main(void) {
     clock_setup();
