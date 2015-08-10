@@ -21,7 +21,7 @@ BINARY = main
 
 CFLAGS += -std=c99
 CXXFLAGS += -std=c++11
-LDSCRIPT = lisa-m.ld
+LDSCRIPT = STM32F103CBT7.ld
 
 LIBNAME		= opencm3_stm32f1
 DEFS		= -DSTM32F1
@@ -65,17 +65,12 @@ OBJCOPY		:= $(PREFIX)-objcopy
 OBJDUMP		:= $(PREFIX)-objdump
 GDB		:= $(PREFIX)-gdb
 STFLASH		= $(shell which st-flash)
-STYLECHECK	:= /checkpatch.pl
-STYLECHECKFLAGS	:= --no-tree -f --terse --mailback
-STYLECHECKFILES	:= $(shell find . -name '*.[ch]')
 
 
 ###############################################################################
 # Source files
 
-LDSCRIPT	?= $(BINARY).ld
-
-OBJS		+= $(BINARY).o time.o hardware.o serial.o gps.o sdcard.o
+OBJS		+= build/$(BINARY).o build/time.o build/hardware.o build/serial.o build/gps.o build/sdcard.o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)
@@ -151,68 +146,61 @@ LDLIBS		+= -Wl,--start-group -lc -lgcc -lnosys -lm -Wl,--end-group
 
 all: elf
 
-elf: $(BINARY).elf
-bin: $(BINARY).bin
-hex: $(BINARY).hex
-srec: $(BINARY).srec
-list: $(BINARY).list
+elf: build/$(BINARY).elf
+bin: build/$(BINARY).bin
+hex: build/$(BINARY).hex
+srec: build/$(BINARY).srec
+list: build/$(BINARY).list
 
 images: $(BINARY).images
 flash: $(BINARY).flash
 
-%.images: %.bin %.hex %.srec %.list %.map
+build/%.images: build/%.bin build/%.hex build/%.srec build/%.list build/%.map
 	@#printf "*** $* images generated ***\n"
 
-%.bin: %.elf
+build/%.bin: build/%.elf
+	@mkdir -p build
 	@#printf "  OBJCOPY $(*).bin\n"
-	$(Q)$(OBJCOPY) -Obinary $(*).elf $(*).bin
+	$(Q)$(OBJCOPY) -Obinary build/$(*).elf build/$(*).bin
 
-%.hex: %.elf
+build/%.hex: build/%.elf
+	@mkdir -p build
 	@#printf "  OBJCOPY $(*).hex\n"
-	$(Q)$(OBJCOPY) -Oihex $(*).elf $(*).hex
+	$(Q)$(OBJCOPY) -Oihex build/$(*).elf build/$(*).hex
 
-%.srec: %.elf
+build/%.srec: build/%.elf
+	@mkdir -p build
 	@#printf "  OBJCOPY $(*).srec\n"
-	$(Q)$(OBJCOPY) -Osrec $(*).elf $(*).srec
+	$(Q)$(OBJCOPY) -Osrec build/$(*).elf build/$(*).srec
 
-%.list: %.elf
+build/%.list: build/%.elf
+	@mkdir -p build
 	@#printf "  OBJDUMP $(*).list\n"
-	$(Q)$(OBJDUMP) -S $(*).elf > $(*).list
+	$(Q)$(OBJDUMP) -S build/$(*).elf > build/$(*).list
 
-%.elf %.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
+build/%.elf build/%.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
+	@mkdir -p build
 	@#printf "  LD      $(*).elf\n"
-	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o $(*).elf
+	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o build/$(*).elf
 
-%.o: %.c
+build/%.o: src/%.c
+	@mkdir -p build
 	@#printf "  CC      $(*).c\n"
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).c
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).c
 
-%.o: %.cxx
+build/%.o: src/%.cxx
+	@mkdir -p build
 	@#printf "  CXX     $(*).cxx\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).cxx
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cxx
 
-%.o: %.cpp
+build/%.o: src/%.cpp
+	@mkdir -p build
 	@#printf "  CXX     $(*).cpp\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).cpp
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cpp
 
 clean:
 	@#printf "  CLEAN\n"
 	$(Q)$(RM) *.o *.d *.elf *.bin *.hex *.srec *.list *.map
-
-stylecheck: $(STYLECHECKFILES:=.stylecheck)
-styleclean: $(STYLECHECKFILES:=.styleclean)
-
-# the cat is due to multithreaded nature - we like to have consistent chunks of text on the output
-%.stylecheck: %
-	$(Q)$(SCRIPT_DIR)$(STYLECHECK) $(STYLECHECKFLAGS) $* > $*.stylecheck; \
-		if [ -s $*.stylecheck ]; then \
-			cat $*.stylecheck; \
-		else \
-			rm -f $*.stylecheck; \
-		fi;
-
-%.styleclean:
-	$(Q)rm -f $*.stylecheck;
 
 
 %.stlink-flash: %.bin
@@ -260,6 +248,6 @@ else
 		   $(*).elf
 endif
 
-.PHONY: images clean stylecheck styleclean elf bin hex srec list
+.PHONY: images clean elf bin hex srec list
 
 -include $(OBJS:.o=.d)
