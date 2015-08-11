@@ -16,15 +16,38 @@
         PB5=sd_spi.MOSI, # SPI1_MOSI
 */
 
-static uint8_t CRC[256] = {0, 9, 18, 27, 36, 45, 54, 63, 72, 65, 90, 83, 108, 101, 126, 119, 25, 16, 11, 2, 61, 52, 47, 38, 81, 88, 67, 74, 117, 124, 103, 110, 50, 59, 32, 41, 22, 31, 4, 13, 122, 115, 104, 97, 94, 87, 76, 69, 43, 34, 57, 48, 15, 6, 29, 20, 99, 106, 113, 120, 71, 78, 85, 92, 100, 109, 118, 127, 64, 73, 82, 91, 44, 37, 62, 55, 8, 1, 26, 19, 125, 116, 111, 102, 89, 80, 75, 66, 53, 60, 39, 46, 17, 24, 3, 10, 86, 95, 68, 77, 114, 123, 96, 105, 30, 23, 12, 5, 58, 51, 40, 33, 79, 70, 93, 84, 107, 98, 121, 112, 7, 14, 21, 28, 35, 42, 49, 56, 65, 72, 83, 90, 101, 108, 119, 126, 9, 0, 27, 18, 45, 36, 63, 54, 88, 81, 74, 67, 124, 117, 110, 103, 16, 25, 2, 11, 52, 61, 38, 47, 115, 122, 97, 104, 87, 94, 69, 76, 59, 50, 41, 32, 31, 22, 13, 4, 106, 99, 120, 113, 78, 71, 92, 85, 34, 43, 48, 57, 6, 15, 20, 29, 37, 44, 55, 62, 1, 8, 19, 26, 109, 100, 127, 118, 73, 64, 91, 82, 60, 53, 46, 39, 24, 17, 10, 3, 116, 125, 102, 111, 80, 89, 66, 75, 23, 30, 5, 12, 51, 58, 33, 40, 95, 86, 77, 68, 123, 114, 105, 96, 14, 7, 28, 21, 42, 35, 56, 49, 70, 79, 84, 93, 98, 107, 112, 121};
+static inline uint8_t CRC7_update(uint8_t state, uint8_t byte) {
+    static const uint8_t CRC7[256] = {0, 9, 18, 27, 36, 45, 54, 63, 72, 65, 90, 83, 108, 101, 126, 119, 25, 16, 11, 2, 61, 52, 47, 38, 81, 88, 67, 74, 117, 124, 103, 110, 50, 59, 32, 41, 22, 31, 4, 13, 122, 115, 104, 97, 94, 87, 76, 69, 43, 34, 57, 48, 15, 6, 29, 20, 99, 106, 113, 120, 71, 78, 85, 92, 100, 109, 118, 127, 64, 73, 82, 91, 44, 37, 62, 55, 8, 1, 26, 19, 125, 116, 111, 102, 89, 80, 75, 66, 53, 60, 39, 46, 17, 24, 3, 10, 86, 95, 68, 77, 114, 123, 96, 105, 30, 23, 12, 5, 58, 51, 40, 33, 79, 70, 93, 84, 107, 98, 121, 112, 7, 14, 21, 28, 35, 42, 49, 56, 65, 72, 83, 90, 101, 108, 119, 126, 9, 0, 27, 18, 45, 36, 63, 54, 88, 81, 74, 67, 124, 117, 110, 103, 16, 25, 2, 11, 52, 61, 38, 47, 115, 122, 97, 104, 87, 94, 69, 76, 59, 50, 41, 32, 31, 22, 13, 4, 106, 99, 120, 113, 78, 71, 92, 85, 34, 43, 48, 57, 6, 15, 20, 29, 37, 44, 55, 62, 1, 8, 19, 26, 109, 100, 127, 118, 73, 64, 91, 82, 60, 53, 46, 39, 24, 17, 10, 3, 116, 125, 102, 111, 80, 89, 66, 75, 23, 30, 5, 12, 51, 58, 33, 40, 95, 86, 77, 68, 123, 114, 105, 96, 14, 7, 28, 21, 42, 35, 56, 49, 70, 79, 84, 93, 98, 107, 112, 121};
+    return CRC7[(state << 1) ^ byte];
+}
 
-static uint8_t CMD(uint8_t n, uint32_t argument, uint32_t * ocr=nullptr) {
+static inline uint16_t CRC16_update(uint16_t state, uint8_t byte) {
+    static uint16_t CRC16[256] = {0, 4129, 8258, 12387, 16516, 20645, 24774, 28903, 33032, 37161, 41290, 45419, 49548, 53677, 57806, 61935, 4657, 528, 12915, 8786, 21173, 17044, 29431, 25302, 37689, 33560, 45947, 41818, 54205, 50076, 62463, 58334, 9314, 13379, 1056, 5121, 25830, 29895, 17572, 21637, 42346, 46411, 34088, 38153, 58862, 62927, 50604, 54669, 13907, 9842, 5649, 1584, 30423, 26358, 22165, 18100, 46939, 42874, 38681, 34616, 63455, 59390, 55197, 51132, 18628, 22757, 26758, 30887, 2112, 6241, 10242, 14371, 51660, 55789, 59790, 63919, 35144, 39273, 43274, 47403, 23285, 19156, 31415, 27286, 6769, 2640, 14899, 10770, 56317, 52188, 64447, 60318, 39801, 35672, 47931, 43802, 27814, 31879, 19684, 23749, 11298, 15363, 3168, 7233, 60846, 64911, 52716, 56781, 44330, 48395, 36200, 40265, 32407, 28342, 24277, 20212, 15891, 11826, 7761, 3696, 65439, 61374, 57309, 53244, 48923, 44858, 40793, 36728, 37256, 33193, 45514, 41451, 53516, 49453, 61774, 57711, 4224, 161, 12482, 8419, 20484, 16421, 28742, 24679, 33721, 37784, 41979, 46042, 49981, 54044, 58239, 62302, 689, 4752, 8947, 13010, 16949, 21012, 25207, 29270, 46570, 42443, 38312, 34185, 62830, 58703, 54572, 50445, 13538, 9411, 5280, 1153, 29798, 25671, 21540, 17413, 42971, 47098, 34713, 38840, 59231, 63358, 50973, 55100, 9939, 14066, 1681, 5808, 26199, 30326, 17941, 22068, 55628, 51565, 63758, 59695, 39368, 35305, 47498, 43435, 22596, 18533, 30726, 26663, 6336, 2273, 14466, 10403, 52093, 56156, 60223, 64286, 35833, 39896, 43963, 48026, 19061, 23124, 27191, 31254, 2801, 6864, 10931, 14994, 64814, 60687, 56684, 52557, 48554, 44427, 40424, 36297, 31782, 27655, 23652, 19525, 15522, 11395, 7392, 3265, 61215, 65342, 53085, 57212, 44955, 49082, 36825, 40952, 28183, 32310, 20053, 24180, 11923, 16050, 3793, 7920};
+    return CRC16[(state >> 8) ^ byte] ^ ((state & 255) << 8);
+}
+
+enum class CMDFormat {
+    R1,
+    R1b,
+    R2,
+    R3,
+    R7,
+};
+enum class CMDData {
+    NONE,
+    READ,
+    WRITE,
+};
+
+static uint16_t CMD(uint8_t n, uint32_t argument,
+CMDFormat format=CMDFormat::R1, uint32_t * R2_R7_data=nullptr,
+CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     assert(n <= 63);
     uint8_t crc = 0;
 #define SEND(b) { \
     uint8_t _ = (b); \
     spi_xfer(SPI1, _); \
-    crc = CRC[(crc << 1) ^ _]; \
+    crc = CRC7_update(crc, _); \
 }
     gpio_clear(GPIOA, GPIO15);
     SEND(0b01000000 | n);
@@ -40,12 +63,50 @@ static uint8_t CMD(uint8_t n, uint32_t argument, uint32_t * ocr=nullptr) {
             break;
         }
     }
-    if(ocr) {
-        *ocr = 0;
+    if(format == CMDFormat::R2) {
+        resp = (resp << 8) | spi_xfer(SPI1, 0xFF);
+    }
+    if(format == CMDFormat::R1b) {
+        while(spi_xfer(SPI1, 0xFF) == 0);
+    }
+    if(format == CMDFormat::R3 || format == CMDFormat::R7) {
+        *R2_R7_data = 0;
         for(int i = 0; i < 4; i++) {
-            *ocr <<= 8;
-            *ocr |= spi_xfer(SPI1, 0xFF);
+            *R2_R7_data <<= 8;
+            *R2_R7_data |= spi_xfer(SPI1, 0xFF);
         }
+    }
+    if(data_mode == CMDData::READ) {
+        uint8_t token;
+        while(true) {
+            token = spi_xfer(SPI1, 0xFF);
+            if(token != 0xFF) break;
+        }
+        assert(token == 0xFE);
+        uint16_t data_crc = 0;
+        for(uint16_t i = 0; i < bytes; i++) {
+            uint8_t byte = spi_xfer(SPI1, 0xFF);
+            *data++ = byte;
+            data_crc = CRC16_update(data_crc, byte);
+        }
+        data_crc = CRC16_update(data_crc, spi_xfer(SPI1, 0xFF)); // CRC
+        data_crc = CRC16_update(data_crc, spi_xfer(SPI1, 0xFF));
+        assert(data_crc == 0);
+    } else if(data_mode == CMDData::WRITE) {
+        spi_xfer(SPI1, 0xFF);
+        spi_xfer(SPI1, 0xFE);
+        uint16_t data_crc = 0;
+        for(uint16_t i = 0; i < bytes; i++) {
+            uint8_t byte = *data++;
+            data_crc = CRC16_update(data_crc, byte);
+            spi_xfer(SPI1, byte);
+        }
+        spi_xfer(SPI1, data_crc >> 8); // CRC
+        spi_xfer(SPI1, data_crc & 0xFF);
+        uint8_t data_resp = spi_xfer(SPI1, 0xFF);
+        printf("data_resp: %i\n", data_resp);
+        assert((data_resp & 0b11111) == 0b00101);
+        while(spi_xfer(SPI1, 0xFF) != 0xFF);
     }
     gpio_set(GPIOA, GPIO15);
     delay(1e-6);
@@ -74,7 +135,6 @@ void sdcard_init() {
     assert(rcc_apb1_frequency / 256 >= 100e3 && rcc_apb1_frequency / 256 <= 400e3);
     spi_init_master(SPI1, SPI_CR1_BAUDRATE_FPCLK_DIV_256, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
         SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
-    spi_set_full_duplex_mode(SPI1);
     
     spi_enable_software_slave_management(SPI1);
     spi_set_nss_high(SPI1);
@@ -89,8 +149,10 @@ void sdcard_init() {
     
     assert(CMD(0, 0) == 1); // reset, in idle state now
     
+    assert(CMD(59, 1) == 1); // enable CRC checking
+    
     // XXX code after here only supports SD Ver.2
-    uint32_t CMD8_aux; assert(CMD(8, 0x1AA, &CMD8_aux) == 1); // check voltage
+    uint32_t CMD8_aux; assert(CMD(8, 0x1AA, CMDFormat::R7, &CMD8_aux) == 1); // check voltage
     assert(CMD8_aux == 0x1AA);
     
     while(true) {
@@ -101,7 +163,13 @@ void sdcard_init() {
         if(resp == 0) break;
     }
     
-    uint32_t CMD58_aux; assert(CMD(58, 0, &CMD58_aux) == 0); // read ocr
+    uint8_t csd_bytes[16];
+    assert(CMD(9, 0, CMDFormat::R1, nullptr, CMDData::READ, sizeof(csd_bytes), csd_bytes) == 0);
+    
+    assert(rcc_apb1_frequency / 4 <= 25e6);
+    spi_set_baudrate_prescaler(SPI1, 1);
+    
+    uint32_t CMD58_aux; assert(CMD(58, 0, CMDFormat::R3, &CMD58_aux) == 0); // read ocr
     
     printf("CMD58_aux: %lu\n", CMD58_aux);
     
@@ -114,6 +182,15 @@ void sdcard_init() {
     }
     
     printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
+    
+    //uint8_t write_data[512] = "hello world!\n";
+    //CMD(24, 0, CMDFormat::R1, nullptr, CMDData::WRITE, sizeof(write_data), write_data);
+    
+    for(uint32_t i = 0; ; i++) {
+        uint8_t read_data[512];
+        assert(CMD(17, i, CMDFormat::R1, nullptr, CMDData::READ, sizeof(read_data), read_data) == 0);
+        printf("%i\n", i);
+    }
     
     printf("done\n");
 }

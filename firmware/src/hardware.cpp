@@ -73,6 +73,8 @@ void set_led_color(double red, double green, double blue) {
         blue /= sum;
     }
     
+    red *= 0.1; green *= 0.1; blue *= 0.1;
+    
     timer_set_oc_value(TIM3, TIM_OC1, red*0xffff+.5);
     timer_set_oc_value(TIM3, TIM_OC2, (red+green)*0xffff+.5);
     timer_set_oc_value(TIM3, TIM_OC3, (1-blue)*0xffff+.5);
