@@ -93,18 +93,24 @@ void sdcard_init() {
     uint32_t CMD8_aux; assert(CMD(8, 0x1AA, &CMD8_aux) == 1); // check voltage
     assert(CMD8_aux == 0x1AA);
     
-    assert(CMD(55, 0) == 1); // ACMD prefix
+    while(true) {
+        assert(CMD(55, 0) == 1); // ACMD prefix
+        
+        uint8_t resp = CMD(41, 0x40000000); // ACMD41(0x40000000)
+        assert(resp == 0 || resp == 1);
+        if(resp == 0) break;
+    }
     
-    assert(CMD(41, 0x40000000) == 1); // ACMD41(0x40000000)
+    uint32_t CMD58_aux; assert(CMD(58, 0, &CMD58_aux) == 0); // read ocr
     
-    uint32_t CMD58_aux; assert(CMD(58, 0, &CMD58_aux) == 1); // read ocr
+    printf("CMD58_aux: %lu\n", CMD58_aux);
     
     if(CMD58_aux & (1<<30)) {
         byte_addresses = false;
     } else {
         byte_addresses = true;
         
-        assert(CMD(16, 0x200) == 1); // set block size to 512 bytes
+        assert(CMD(16, 0x200) == 0); // set block size to 512 bytes
     }
     
     printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
