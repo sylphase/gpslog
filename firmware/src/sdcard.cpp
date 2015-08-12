@@ -1,5 +1,4 @@
-#include <stdio.h>
-
+#include <cstdio>
 #include <cassert>
 
 #include <libopencm3/stm32/rcc.h>
@@ -11,7 +10,6 @@
 #include "time.h"
 #include "ff/ff.h"
 #include "ff/diskio.h"
-#include "circular_buffer.h"
 
 /*
         PA15=sd_spi_nCS, # SPI1_NSS
@@ -111,6 +109,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         printf("data_resp: %i\n", data_resp);
         assert((data_resp & 0b11111) == 0b00101);
         while(spi_xfer(SPI1, 0xFF) != 0xFF);
+        printf("done\n");
     }
     spi_xfer(SPI1, 0xFF);
     gpio_set(GPIOA, GPIO15);
@@ -121,7 +120,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
 static bool byte_addresses;
 static FATFS fs;
 static FIL file;
-static CircularBuffer<uint8_t, 4096> buf;
+CircularBuffer<uint8_t, 4096> sdcard_buf;
 uint32_t const SYNC_PERIOD = 10;
 uint64_t next_sync_time;
 
@@ -211,20 +210,16 @@ void sdcard_init() {
 }
 
 void sdcard_poll() {
-    while(true) {
-        cm_disable_interrupts();
-        uint32_t count = buf.read_contiguous_available();
-        uint8_t const * data = buf.read_pointer();
-        cm_enable_interrupts();
-        
-        if(count) {
-            UINT written;
-            assert(f_write(&file, data, count, &written) == FR_OK);
-            assert(written <= count);
-            buf.read_skip(written);
-        } else {
-            break;
-        }
+    cm_disable_interrupts();
+    uint32_t count = sdcard_buf.read_contiguous_available();
+    uint8_t const * data = sdcard_buf.read_pointer();
+    cm_enable_interrupts();
+    
+    if(count) {
+        UINT written;
+        assert(f_write(&file, data, count, &written) == FR_OK);
+        assert(written <= count);
+        sdcard_buf.read_skip(written);
     }
     
     if(time_get_ticks() >= next_sync_time) {
@@ -236,9 +231,9 @@ void sdcard_poll() {
 
 void sdcard_log(uint32_t length, uint8_t const * data) {
     cm_disable_interrupts();
-    if(buf.write_available() < length) return; // drop
+    if(sdcard_buf.write_available() < length) return; // drop
     while(length--) {
-        assert(buf.write_one(*data++));
+        assert(sdcard_buf.write_one(*data++));
     }
     cm_enable_interrupts();
 }

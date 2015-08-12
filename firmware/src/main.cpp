@@ -1,10 +1,11 @@
-#include <stdio.h>
+#include <cstdio>
 #include <math.h>
 #include <unistd.h>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
+#include <libopencm3/cm3/cortex.h>
 
 #include "hardware.h"
 #include "time.h"
@@ -81,14 +82,10 @@ int main(void) {
     
     uint8_t const msg[] = "start of log\r\n";
     sdcard_log(sizeof(msg), msg);
+    gps_start_logging();
     
     while(true) {
         sdcard_poll();
-        /*uint8_t x;
-        if(serial_buf.read(x)) {
-            usart_send_blocking(USART1, x);
-            set_led_color(1, 0, 0);
-        }*/
         
         float vdd = measure_vdd();
         if(hardware_get_battery_really_dead(vdd)) {
