@@ -48,7 +48,7 @@ def main():
     
     # REGULATOR & POWER SWITCH
     vcc3_3_enable = Net('vcc3_3_enable')
-    yield resistor(1e6)('R1', A=vbat, B=vcc3_3_enable)
+    yield resistor(10e6)('R1', A=vbat, B=vcc3_3_enable)
     yield capacitor(1e-6)('C2', A=vcc3_3_enable, B=gnd)
     vcc3_3_enable_pulldown = Net('vcc3_3_enable_pulldown')
     yield resistor(10e3)('R7', A=vcc3_3_enable_pulldown, B=gnd)
@@ -295,5 +295,5 @@ def main():
 
 desc = main()
 kicad.generate(desc, 'kicad')
-bom.generate(desc, 'bom', quantity=1, add_spares=True)
+bom.generate(desc, 'bom', quantity=3, add_spares=True)
 #netlist_graph2.generate(desc, 'netlist.svg')
