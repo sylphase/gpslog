@@ -8,6 +8,8 @@
 
 #include "sdcard.h"
 #include "time.h"
+#include "ff/ff.h"
+#include "ff/diskio.h"
 
 /*
         PA15=sd_spi_nCS, # SPI1_NSS
@@ -108,6 +110,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         assert((data_resp & 0b11111) == 0b00101);
         while(spi_xfer(SPI1, 0xFF) != 0xFF);
     }
+    spi_xfer(SPI1, 0xFF);
     gpio_set(GPIOA, GPIO15);
     delay(1e-6);
     return resp;
@@ -182,15 +185,129 @@ void sdcard_init() {
     }
     
     printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
+    assert(!byte_addresses); // XXX
     
     //uint8_t write_data[512] = "hello world!\n";
-    //CMD(24, 0, CMDFormat::R1, nullptr, CMDData::WRITE, sizeof(write_data), write_data);
+    //assert(CMD(24, 0, CMDFormat::R1, nullptr, CMDData::WRITE, sizeof(write_data), write_data) == 0);
     
-    for(uint32_t i = 0; ; i++) {
+    /*for(uint32_t i = 0; ; i++) {
         uint8_t read_data[512];
         assert(CMD(17, i, CMDFormat::R1, nullptr, CMDData::READ, sizeof(read_data), read_data) == 0);
         printf("%i\n", i);
+    }*/
+    
+    {
+        FATFS fs;
+        assert(f_mount(&fs, "", 1) == FR_OK);
+        
+        {
+            FIL file;
+            assert(f_open(&file, "testfat.txt", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK);
+            assert(f_puts("hello fat world\n", &file) != EOF);
+            assert(f_close(&file) == FR_OK);
+        }
+        
+        {
+            FIL file;
+            assert(f_open(&file, "test.txt", FA_READ) == FR_OK);
+            while(true) {
+                uint8_t c;
+                UINT res;
+                assert(f_read(&file, &c, 1, &res) == FR_OK);
+                if(res != 1) break;
+                putchar(c);
+            }
+            assert(f_close(&file) == FR_OK);
+        }
+        
+        assert(f_mount(nullptr, "", 1) == FR_OK);
     }
     
     printf("done\n");
 }
+
+DRESULT disk_write (
+	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
+	const BYTE *buff,	/* Data to be written */
+	DWORD sector,		/* Sector address in LBA */
+	UINT count			/* Number of sectors to write */
+)
+{
+    assert(pdrv == 0);
+    
+    printf("writing to %u sectors starting at %lu\n", count, sector);
+    
+    while(count--) {
+        assert(CMD(24, sector, CMDFormat::R1, nullptr, CMDData::WRITE, 512, const_cast<BYTE*>(buff)) == 0);
+        sector++;
+        buff += 512;
+    }
+    
+	return RES_OK;
+}
+
+static DSTATUS status = STA_NOINIT;
+
+DRESULT disk_read (
+	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
+	BYTE *buff,		/* Data buffer to store read data */
+	DWORD sector,	/* Sector address in LBA */
+	UINT count		/* Number of sectors to read */
+)
+{
+    assert(pdrv == 0);
+    
+    printf("reading from %u sectors starting at %lu\n", count, sector);
+    
+    while(count--) {
+        assert(CMD(17, sector, CMDFormat::R1, nullptr, CMDData::READ, 512, buff) == 0);
+        sector++;
+        buff += 512;
+    }
+    
+	return RES_OK;
+}
+
+DSTATUS disk_status (
+	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+)
+{
+    assert(pdrv == 0);
+    
+    return status;
+}
+
+DSTATUS disk_initialize (
+	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+)
+{
+    assert(pdrv == 0);
+    
+    status = 0;
+    
+    return status;
+}
+
+#if _USE_IOCTL
+DRESULT disk_ioctl (
+	BYTE pdrv,		/* Physical drive nmuber (0..) */
+	BYTE cmd,		/* Control code */
+	void *buff		/* Buffer to send/receive control data */
+)
+{
+    assert(pdrv == 0);
+    
+    if(cmd == CTRL_SYNC) {
+        return RES_OK;
+    } else if(cmd == GET_SECTOR_COUNT) {
+        assert(false);
+    } else if(cmd == GET_SECTOR_SIZE) {
+        assert(false);
+    } else if(cmd == GET_BLOCK_SIZE) {
+        assert(false);
+    } else {
+        printf("disk_ioctl got invalid cmd %i\n", cmd);
+        return RES_PARERR;
+    }
+}
+#endif

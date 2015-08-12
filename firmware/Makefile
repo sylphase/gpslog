@@ -19,9 +19,10 @@
 
 BINARY = main
 
-CFLAGS += -std=c99
-CXXFLAGS += -std=c++11
+CFLAGS += -std=c99 -ggdb
+CXXFLAGS += -std=c++11 -ggdb
 LDSCRIPT = STM32F103CBT7.ld
+LDFLAGS += -ggdb
 
 LIBNAME		= opencm3_stm32f1
 DEFS		= -DSTM32F1
@@ -70,7 +71,7 @@ STFLASH		= $(shell which st-flash)
 ###############################################################################
 # Source files
 
-OBJS		+= build/$(BINARY).o build/time.o build/hardware.o build/serial.o build/gps.o build/sdcard.o
+OBJS		+= build/$(BINARY).o build/time.o build/hardware.o build/serial.o build/gps.o build/sdcard.o build/ff/ff.o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)
@@ -184,23 +185,23 @@ build/%.elf build/%.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
 	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o build/$(*).elf
 
 build/%.o: src/%.c
-	@mkdir -p build
+	@mkdir -p $(dir $@)
 	@#printf "  CC      $(*).c\n"
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).c
 
 build/%.o: src/%.cxx
-	@mkdir -p build
+	@mkdir -p $(dir $@)
 	@#printf "  CXX     $(*).cxx\n"
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cxx
 
 build/%.o: src/%.cpp
-	@mkdir -p build
+	@mkdir -p $(dir $@)
 	@#printf "  CXX     $(*).cpp\n"
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cpp
 
 clean:
 	@#printf "  CLEAN\n"
-	$(Q)$(RM) *.o *.d *.elf *.bin *.hex *.srec *.list *.map
+	rm -fr build
 
 
 %.stlink-flash: %.bin
