@@ -150,7 +150,14 @@ void usart1_isr(void) {
             if(packet[0] == 0xF5) {
                 double x; memcpy(&x, packet+1, 8);
                 int16_t week = packet[9] | (packet[10] << 8);
-                printf("time: %i %f\n", week, x);
+                double s = 315964800 + 24*60*60*7 * (1024+week) + x/1000;
+                std::time_t t;
+                t = s;
+                std::tm const * tm = gmtime(&t);
+                assert(tm);
+                char date[100];
+                strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
+                printf("time: %s\n", date);
             }
             
             parse_state = ParseState::WAITING_FOR_DLE;
