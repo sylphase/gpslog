@@ -1,0 +1,17 @@
+disk IO can only happen in main thread (since it blocks)
+main thread polls log buffer
+
+
+tx interrupt sending serial tx buffer
+
+
+
+
+
+
+
+capture data from barometer, AHRS, battery voltage?, GPS receiver and stream to sd card and serial
+
+
+wait for GPS time
+start log file

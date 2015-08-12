@@ -8,8 +8,8 @@
 #include "gps.h"
 
 #include "time.h"
-
 #include "hardware.h"
+#include "sdcard.h"
 
 static uint8_t const DLE = 0x10;
 static uint8_t const ETX = 0x03;
@@ -67,8 +67,9 @@ extern "C" {
 void usart1_isr(void) {
     if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
-        char data = usart_recv(USART1);
+        uint8_t data = usart_recv(USART1);
         //usart_send_blocking(USART2, data);
+        sdcard_log(1, &data);
     }
 }
 

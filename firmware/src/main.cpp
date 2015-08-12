@@ -79,8 +79,11 @@ int main(void) {
     
     printf("hello world!\n");
     
+    uint8_t const msg[] = "start of log\r\n";
+    sdcard_log(sizeof(msg), msg);
+    
     while(true) {
-        
+        sdcard_poll();
         /*uint8_t x;
         if(serial_buf.read(x)) {
             usart_send_blocking(USART1, x);

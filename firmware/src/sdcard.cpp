@@ -5,11 +5,13 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/cortex.h>
 
 #include "sdcard.h"
 #include "time.h"
 #include "ff/ff.h"
 #include "ff/diskio.h"
+#include "circular_buffer.h"
 
 /*
         PA15=sd_spi_nCS, # SPI1_NSS
@@ -116,7 +118,12 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     return resp;
 }
 
-bool byte_addresses;
+static bool byte_addresses;
+static FATFS fs;
+static FIL file;
+static CircularBuffer<uint8_t, 4096> buf;
+uint32_t const SYNC_PERIOD = 10;
+uint64_t next_sync_time;
 
 void sdcard_init() {
     printf("hello world from sdcard!\n");
@@ -196,34 +203,44 @@ void sdcard_init() {
         printf("%i\n", i);
     }*/
     
-    {
-        FATFS fs;
-        assert(f_mount(&fs, "", 1) == FR_OK);
-        
-        {
-            FIL file;
-            assert(f_open(&file, "testfat.txt", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK);
-            assert(f_puts("hello fat world\n", &file) != EOF);
-            assert(f_close(&file) == FR_OK);
-        }
-        
-        {
-            FIL file;
-            assert(f_open(&file, "test.txt", FA_READ) == FR_OK);
-            while(true) {
-                uint8_t c;
-                UINT res;
-                assert(f_read(&file, &c, 1, &res) == FR_OK);
-                if(res != 1) break;
-                putchar(c);
-            }
-            assert(f_close(&file) == FR_OK);
-        }
-        
-        assert(f_mount(nullptr, "", 1) == FR_OK);
-    }
+    assert(f_mount(&fs, "", 1) == FR_OK);
+    assert(f_open(&file, "log.txt", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK);
+    next_sync_time = 0;
     
     printf("done\n");
+}
+
+void sdcard_poll() {
+    while(true) {
+        cm_disable_interrupts();
+        uint32_t count = buf.read_contiguous_available();
+        uint8_t const * data = buf.read_pointer();
+        cm_enable_interrupts();
+        
+        if(count) {
+            UINT written;
+            assert(f_write(&file, data, count, &written) == FR_OK);
+            assert(written <= count);
+            buf.read_skip(written);
+        } else {
+            break;
+        }
+    }
+    
+    if(time_get_ticks() >= next_sync_time) {
+        f_sync(&file);
+        
+        next_sync_time = time_get_ticks() + SYNC_PERIOD * time_get_ticks_per_second();
+    }
+}
+
+void sdcard_log(uint32_t length, uint8_t const * data) {
+    cm_disable_interrupts();
+    if(buf.write_available() < length) return; // drop
+    while(length--) {
+        assert(buf.write_one(*data++));
+    }
+    cm_enable_interrupts();
 }
 
 DRESULT disk_write (

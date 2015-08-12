@@ -20,7 +20,7 @@
 BINARY = main
 
 CFLAGS += -std=c99 -ggdb
-CXXFLAGS += -std=c++11 -ggdb
+CXXFLAGS += -std=c++11 -ggdb -Wno-unused-parameter
 LDSCRIPT = STM32F103CBT7.ld
 LDFLAGS += -ggdb
 

@@ -53,7 +53,7 @@ bool hardware_get_battery_dead(float vdd) {
 }
 
 bool hardware_get_battery_really_dead(float vdd) {
-    double vdd_sup = 1.16/1.20*vdd;
+    double vdd_sup = 1.16/1.20*vdd + .1;
     return vdd_sup < 3;
 }
 
