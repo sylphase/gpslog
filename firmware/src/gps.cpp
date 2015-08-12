@@ -15,6 +15,7 @@
 #include "time.h"
 #include "hardware.h"
 #include "sdcard.h"
+#include "main.h"
 
 static uint8_t const DLE = 0x10;
 static uint8_t const ETX = 0x03;
@@ -82,6 +83,8 @@ static ParseState parse_state = ParseState::WAITING_FOR_DLE;
 static uint8_t packet[1024];
 static uint16_t packet_pos;
 
+static bool called_got_date_string = false;
+
 extern "C" {
 
 __attribute__((interrupt))
@@ -126,8 +129,6 @@ void usart1_isr(void) {
             // done!
             // process packet, but remember that we are in an interrupt handler
             
-            //printf("gps: success %i %i\n", packet[0], packet_pos);
-            
             if(logging_enabled) {
                 //cm_disable_interrupts();
                 if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
@@ -147,7 +148,7 @@ void usart1_isr(void) {
                 //cm_enable_interrupts();
             }
             
-            if(packet[0] == 0xF5) {
+            if(packet[0] == 0xF5 && !called_got_date_string) {
                 double x; memcpy(&x, packet+1, 8);
                 int16_t week = packet[9] | (packet[10] << 8);
                 double s = 315964800 + 24*60*60*7 * (1024+week) + x/1000;
@@ -157,7 +158,9 @@ void usart1_isr(void) {
                 assert(tm);
                 char date[100];
                 strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
-                printf("time: %s\n", date);
+                //printf("time: %s\n", date);
+                got_date_string(date);
+                called_got_date_string = true;
             }
             
             parse_state = ParseState::WAITING_FOR_DLE;

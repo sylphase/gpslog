@@ -121,8 +121,9 @@ static bool byte_addresses;
 static FATFS fs;
 static FIL file;
 CircularBuffer<uint8_t, 4096> sdcard_buf;
-uint32_t const SYNC_PERIOD = 10;
-uint64_t next_sync_time;
+static uint32_t const SYNC_PERIOD = 10;
+static uint64_t next_sync_time;
+static bool opened = false;
 
 void sdcard_init() {
     printf("hello world from sdcard!\n");
@@ -203,13 +204,21 @@ void sdcard_init() {
     }*/
     
     assert(f_mount(&fs, "", 1) == FR_OK);
-    assert(f_open(&file, "log.txt", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK);
-    next_sync_time = 0;
     
     printf("done\n");
 }
 
+void sdcard_open(char const * filename) {
+    FRESULT x = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
+    printf("%i\n", x);
+    assert(x == FR_OK);
+    next_sync_time = 0;
+    opened = true;
+}
+
 void sdcard_poll() {
+    if(!opened) return;
+    
     cm_disable_interrupts();
     uint32_t count = sdcard_buf.read_contiguous_available();
     uint8_t const * data = sdcard_buf.read_pointer();

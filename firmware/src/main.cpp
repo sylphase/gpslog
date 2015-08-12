@@ -1,11 +1,14 @@
 #include <cstdio>
 #include <math.h>
 #include <unistd.h>
+#include <cstring>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/cm3/cortex.h>
+
+#include "main.h"
 
 #include "hardware.h"
 #include "time.h"
@@ -43,6 +46,15 @@ void _exit(int status) {
 
 }
 
+
+static volatile bool got_filename = false;
+static char filename[128] = {0};
+void got_date_string(char const *str) {
+    strncpy(filename, str, sizeof(filename));
+    strncat(filename, ".txt", sizeof(filename));
+    got_filename = true;
+}
+
 int main(void) {
     clock_setup();
     hardware_init();
@@ -61,28 +73,25 @@ int main(void) {
         }
     }
     
-    /*
-    while(true) {
-        double t = static_cast<double>(time_get_ticks()) / rcc_ahb_frequency;
-        double x = fmod(t, 10) / 10 * 2 * 3.14159;
-        set_led_color((.5*cos(x)+.5)/6, (.5*cos(x + 2 * 3.14159/3)+.5)/6, (.5*cos(x+2 * 3.14159/3*2)+.5)/6);
-    }
-    */
-    
-    set_led_color(0, 1, 0); // stop showing red (red won't be visible at all)
+    set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
     sdcard_init();
     
     gps_setup();
     
-    delay(1);
-    set_led_color(0, 0, 1);
-    
     printf("hello world!\n");
+    printf("waiting for date from gps...\n");
+    while(!got_filename);
+    
+    printf("got date filename: %s! opening\n", filename);
+    sdcard_open(filename);
     
     uint8_t const msg[] = "start of log\r\n";
     sdcard_log(sizeof(msg), msg);
+    
     gps_start_logging();
+    
+    set_led_color(0, 1, 0);
     
     while(true) {
         sdcard_poll();
