@@ -63,6 +63,8 @@ void poweroff() {
     while(true) { }
 }
 
+static uint16_t const timer_period = 7200; // 10 kHz PWM - 1 kHz was occasionally visible
+
 void set_led_color(double red, double green, double blue) {
     red *= 0.6; // compensate for red LED being brighter
     
@@ -75,9 +77,9 @@ void set_led_color(double red, double green, double blue) {
     
     red *= 0.1; green *= 0.1; blue *= 0.1;
     
-    timer_set_oc_value(TIM3, TIM_OC1, red*0xffff+.5);
-    timer_set_oc_value(TIM3, TIM_OC2, (red+green)*0xffff+.5);
-    timer_set_oc_value(TIM3, TIM_OC3, (1-blue)*0xffff+.5);
+    timer_set_oc_value(TIM3, TIM_OC1, red*timer_period+.5);
+    timer_set_oc_value(TIM3, TIM_OC2, (red+green)*timer_period+.5);
+    timer_set_oc_value(TIM3, TIM_OC3, (1-blue)*timer_period+.5);
 }
 
 void hardware_init() {
@@ -92,7 +94,7 @@ void hardware_init() {
     timer_reset(TIM3);
     timer_set_mode(TIM3, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
     timer_set_prescaler(TIM3, 0);
-    timer_set_period(TIM3, 0xfffe);
+    timer_set_period(TIM3, timer_period-1);
 
     timer_set_oc_mode(TIM3, TIM_OC1, TIM_OCM_PWM1);
     timer_enable_oc_output(TIM3, TIM_OC1);
