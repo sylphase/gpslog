@@ -87,7 +87,6 @@ static bool called_got_date_string = false;
 
 extern "C" {
 
-__attribute__((interrupt))
 void usart1_isr(void) {
     //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
     //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;

@@ -52,7 +52,6 @@ int _write(int file, char *ptr, int len) {
     return -1;
 }
 
-__attribute__((interrupt))
 void usart2_isr(void) {
     //set_led_color(LEDColor::RED);
     if (((USART_CR1(USART2) & USART_CR1_RXNEIE) != 0) &&

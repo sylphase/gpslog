@@ -25,7 +25,6 @@ static bool check_rollover() {
 
 extern "C" {
 
-__attribute__((interrupt))
 void sys_tick_handler(void) {
   cm_disable_interrupts();
   check_rollover();
