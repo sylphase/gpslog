@@ -247,9 +247,13 @@ void sdcard_poll() {
 
 void sdcard_log(uint32_t length, uint8_t const * data) {
     cm_disable_interrupts();
-    if(sdcard_buf.write_available() < length) return; // drop
-    while(length--) {
-        assert(sdcard_buf.write_one(*data++));
+    if(sdcard_buf.write_available() < length) {
+        // drop
+        printf("sdcard_log dropped something\n");
+    } else {
+        while(length--) {
+            assert(sdcard_buf.write_one(*data++));
+        }
     }
     cm_enable_interrupts();
 }
