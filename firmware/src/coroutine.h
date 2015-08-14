@@ -5,6 +5,8 @@
 #include <csetjmp>
 #include <cstdint>
 
+// public interface is just the Coroutine class and yield()
+
 class CoroutineBase {
 protected:
     jmp_buf j_;
@@ -12,12 +14,14 @@ protected:
 public:
     friend inline void yield();
     friend void runner_helper();
+    virtual ~CoroutineBase() {
+    };
 };
 
 extern CoroutineBase *current_coroutine;
 
 inline void yield() {
-    assert(current_coroutine);
+    if(!current_coroutine) return; //assert(current_coroutine);
     if(setjmp(current_coroutine->j2_)) {
     } else {
         longjmp(current_coroutine->j_, 1);
@@ -58,7 +62,7 @@ public:
         started_(false) {
     }
     template<typename Function>
-    bool start(Function const & func) { // returns finished
+    bool start(Function & func) { // returns finished
         Runner<Function> runner(func);
         to_run = &runner;
         
@@ -94,6 +98,9 @@ public:
             current_coroutine = this;
             longjmp(j2_, 1);
         }
+    }
+    ~Coroutine() {
+        assert(!started_);
     }
 };
 

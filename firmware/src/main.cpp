@@ -15,6 +15,7 @@
 #include "serial.h"
 #include "gps.h"
 #include "sdcard.h"
+#include "coroutine.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -102,8 +103,20 @@ int main(void) {
     
     set_led_color(0, 1, 0);
     
+    Coroutine<1024> sdcard_poll_coroutine;
+    sdcard_poll_coroutine.start(sdcard_poll);
+    
+    auto test_coroutine_func = []() {
+        while(true) {
+            printf("test\n");
+            yield();
+        }
+    };
+    Coroutine<1024> test_coroutine;
+    test_coroutine.start(test_coroutine_func);
+    
     while(true) {
-        sdcard_poll();
+        assert(!sdcard_poll_coroutine.run_some());
         
         {
             CallbackRecord x;

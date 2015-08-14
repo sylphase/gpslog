@@ -10,6 +10,7 @@
 #include "time.h"
 #include "ff/ff.h"
 #include "ff/diskio.h"
+#include "coroutine.h"
 
 /*
         PA15=sd_spi_nCS, # SPI1_NSS
@@ -64,12 +65,13 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         if((resp & 0b10000000) == 0) {
             break;
         }
+        yield();
     }
     if(format == CMDFormat::R2) {
         resp = (resp << 8) | spi_xfer(SPI1, 0xFF);
     }
     if(format == CMDFormat::R1b) {
-        while(spi_xfer(SPI1, 0xFF) == 0);
+        while(spi_xfer(SPI1, 0xFF) == 0) yield();
     }
     if(format == CMDFormat::R3 || format == CMDFormat::R7) {
         *R2_R7_data = 0;
@@ -83,6 +85,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         while(true) {
             token = spi_xfer(SPI1, 0xFF);
             if(token != 0xFF) break;
+            yield();
         }
         assert(token == 0xFE);
         uint16_t data_crc = 0;
@@ -108,7 +111,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         uint8_t data_resp = spi_xfer(SPI1, 0xFF);
         printf("data_resp: %i\n", data_resp);
         assert((data_resp & 0b11111) == 0b00101);
-        while(spi_xfer(SPI1, 0xFF) != 0xFF);
+        while(spi_xfer(SPI1, 0xFF) != 0xFF) yield();
         printf("done\n");
     }
     spi_xfer(SPI1, 0xFF);
@@ -217,24 +220,28 @@ void sdcard_open(char const * filename) {
 }
 
 void sdcard_poll() {
-    if(!opened) return;
-    
-    cm_disable_interrupts();
-    uint32_t count = sdcard_buf.read_contiguous_available();
-    uint8_t const * data = sdcard_buf.read_pointer();
-    cm_enable_interrupts();
-    
-    if(count) {
-        UINT written;
-        assert(f_write(&file, data, count, &written) == FR_OK);
-        assert(written <= count);
-        sdcard_buf.read_skip(written);
-    }
-    
-    if(time_get_ticks() >= next_sync_time) {
-        f_sync(&file);
+    while(true) {
+        if(!opened) continue;
         
-        next_sync_time = time_get_ticks() + SYNC_PERIOD * time_get_ticks_per_second();
+        cm_disable_interrupts();
+        uint32_t count = sdcard_buf.read_contiguous_available();
+        uint8_t const * data = sdcard_buf.read_pointer();
+        cm_enable_interrupts();
+        
+        if(count) {
+            UINT written;
+            assert(f_write(&file, data, count, &written) == FR_OK);
+            assert(written <= count);
+            sdcard_buf.read_skip(written);
+        }
+        
+        if(time_get_ticks() >= next_sync_time) {
+            f_sync(&file);
+            
+            next_sync_time = time_get_ticks() + SYNC_PERIOD * time_get_ticks_per_second();
+        }
+        
+        yield();
     }
 }
 

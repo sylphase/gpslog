@@ -123,6 +123,8 @@ static void got_byte(void *, uint32_t data2) {
             // done!
             // process packet, but remember that we are in an interrupt handler
             
+            printf("gps: success %i %i\n", packet[0], packet_pos);
+            
             if(logging_enabled) {
                 //cm_disable_interrupts();
                 if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
@@ -168,11 +170,11 @@ static void got_byte(void *, uint32_t data2) {
 extern "C" {
 
 void usart1_isr(void) {
-    //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
-    //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
-    
     USART_SR(USART1);
     uint8_t data = usart_recv(USART1);
+    
+    //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
+    //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
     
     main_callbacks.write_one(CallbackRecord(got_byte, nullptr, data));
 }
