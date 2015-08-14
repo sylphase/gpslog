@@ -78,7 +78,9 @@ int main(void) {
     serial_setup();
     
     printf("start\n");
-    bool finished = test_coroutine.start(test_coroutine_func, 42);
+    bool finished = test_coroutine.start([]() {
+        test_coroutine_func(42);
+    });
     printf("mid\n");
     while(!finished) {
         finished = test_coroutine.run_some();

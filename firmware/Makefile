@@ -59,7 +59,7 @@ PREFIX		?= arm-none-eabi
 
 CC		:= $(PREFIX)-gcc
 CXX		:= $(PREFIX)-g++
-LD		:= $(PREFIX)-gcc
+LD		:= $(PREFIX)-g++
 AR		:= $(PREFIX)-ar
 AS		:= $(PREFIX)-as
 OBJCOPY		:= $(PREFIX)-objcopy
@@ -135,7 +135,7 @@ endif
 # Used libraries
 
 LDLIBS		+= -l$(LIBNAME)
-LDLIBS		+= -Wl,--start-group -lc -lgcc -lnosys -lm -Wl,--end-group
+LDLIBS		+= -Wl,--start-group -lc -lnosys -lm
 
 ###############################################################################
 ###############################################################################

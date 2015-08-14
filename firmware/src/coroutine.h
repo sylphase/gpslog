@@ -9,17 +9,45 @@ protected:
     jmp_buf j2_;
 public:
     friend inline void yield();
+    friend void runner_helper();
 };
 
-CoroutineBase *current_coroutine = nullptr;
+static CoroutineBase *current_coroutine = nullptr;
 
 inline void yield() {
     assert(current_coroutine);
     if(setjmp(current_coroutine->j2_)) {
-        printf("resumed\n");
     } else {
         longjmp(current_coroutine->j_, 1);
     }
+}
+
+class RunnerBase {
+public:
+    virtual void run() const = 0;
+    virtual ~RunnerBase() {
+    };
+};
+
+template<typename Function>
+class Runner : public RunnerBase {
+    Function const & func_;
+public:
+    Runner(Function const & func) :
+        func_(func) {
+    }
+    void run() const {
+        func_();
+    }
+    ~Runner() {
+    }
+};
+
+static RunnerBase const * to_run = nullptr;
+
+void runner_helper() {
+    to_run->run();
+    longjmp(current_coroutine->j_, 2);
 }
 
 template<unsigned int StackSize>
@@ -30,36 +58,40 @@ public:
     Coroutine() :
         started_(false) {
     }
-    template<typename Function, typename... Args>
-    bool start(Function func, Args... args) { // returns finished
+    template<typename Function>
+    bool start(Function const & func) { // returns finished
+        Runner<Function> runner(func);
+        to_run = &runner;
+        
         assert(!started_);
         int x = setjmp(j_);
         if(x) {
             current_coroutine = nullptr;
-            printf("got %i\n", x);
             bool finished = x == 2;
             started_ = !finished;
             return finished;
         } else {
+            assert(!current_coroutine);
             current_coroutine = this;
             started_ = true;
             uint32_t new_sp = reinterpret_cast<uint32_t>(stack_ + StackSize + 7) & (~7);
-            printf("new_sp: %lu\n", new_sp);
-            asm volatile ("mov sp, %0" : : "r" (new_sp));
-            func(args...);
-            longjmp(j_, 2);
+            asm volatile (
+                "mov sp, %0\n"
+                "bx %1\n"
+            : : "r" (new_sp), "r" (runner_helper));
+            assert(false);
         }
     }
     bool run_some() {
         assert(started_);
         int x = setjmp(j_);
         if(x) {
-            printf("got %i\n", x);
+            current_coroutine = nullptr;
             bool finished = x == 2;
             started_ = !finished;
             return finished;
         } else {
-            printf("restarting\n");
+            assert(!current_coroutine);
             current_coroutine = this;
             longjmp(j2_, 1);
         }
