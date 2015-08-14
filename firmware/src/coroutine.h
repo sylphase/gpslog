@@ -1,7 +1,9 @@
 #ifndef GUARD_STYBXVWIUPDPSFKJ
 #define GUARD_STYBXVWIUPDPSFKJ
 
-#include <setjmp.h>
+#include <cassert>
+#include <csetjmp>
+#include <cstdint>
 
 class CoroutineBase {
 protected:
@@ -12,7 +14,7 @@ public:
     friend void runner_helper();
 };
 
-static CoroutineBase *current_coroutine = nullptr;
+extern CoroutineBase *current_coroutine;
 
 inline void yield() {
     assert(current_coroutine);
@@ -43,12 +45,9 @@ public:
     }
 };
 
-static RunnerBase const * to_run = nullptr;
+extern RunnerBase const * to_run;
 
-void runner_helper() {
-    to_run->run();
-    longjmp(current_coroutine->j_, 2);
-}
+void runner_helper();
 
 template<unsigned int StackSize>
 class Coroutine : public CoroutineBase {
