@@ -110,7 +110,7 @@ CFLAGS		+= -fno-common -ffunction-sections -fdata-sections
 
 CXXFLAGS	+= -Os -g
 CXXFLAGS	+= -Wextra -Wshadow -Wredundant-decls  -Weffc++
-CXXFLAGS	+= -fno-common -ffunction-sections -fdata-sections
+CXXFLAGS	+= -fno-common -ffunction-sections -fdata-sections -fno-rtti -fno-exceptions
 
 ###############################################################################
 # C & C++ preprocessor common flags
@@ -126,7 +126,7 @@ LDFLAGS		+= --static -nostartfiles
 LDFLAGS		+= -L$(LIB_DIR)
 LDFLAGS		+= -T$(LDSCRIPT)
 LDFLAGS		+= -Wl,-Map=$(*).map
-LDFLAGS		+= -Wl,--gc-sections
+LDFLAGS		+= -Wl,--gc-sections -fno-rtti -fno-exceptions
 ifeq ($(V),99)
 LDFLAGS		+= -Wl,--print-gc-sections
 endif
