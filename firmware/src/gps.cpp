@@ -54,7 +54,6 @@ void gps_setup(void) {
     usart_set_mode(USART1, USART_MODE_TX_RX);
     usart_set_parity(USART1, USART_PARITY_ODD);
     usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-    usart_enable_rx_interrupt(USART1);
 
     /* Finally enable the USART. */
     usart_enable(USART1);
@@ -66,6 +65,8 @@ void gps_setup(void) {
     send_command(0x5c, 1, (uint8_t const []){1}); // atmospheric corrections
     send_command(0xd5, 1, (uint8_t const []){1}); // bit information
     send_command(0xf4, 1, (uint8_t const []){1}); // 10 Hz raw data
+    
+    usart_enable_rx_interrupt(USART1);
 }
 
 static bool logging_enabled = false;
@@ -85,14 +86,8 @@ static uint16_t packet_pos;
 
 static bool called_got_date_string = false;
 
-extern "C" {
-
-void usart1_isr(void) {
-    //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
-    //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
-    
-    USART_SR(USART1);
-    uint8_t data = usart_recv(USART1);
+static void got_byte(void *, uint32_t data2) {
+    uint8_t data = data2;
     
     if(packet_pos == sizeof(packet)) {
         // abort if we would overrun
@@ -168,6 +163,18 @@ void usart1_isr(void) {
             parse_state = ParseState::WAITING_FOR_DLE;
         }
     }
+}
+
+extern "C" {
+
+void usart1_isr(void) {
+    //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
+    //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
+    
+    USART_SR(USART1);
+    uint8_t data = usart_recv(USART1);
+    
+    main_callbacks.write_one(CallbackRecord(got_byte, nullptr, data));
 }
 
 }

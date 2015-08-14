@@ -55,6 +55,8 @@ void got_date_string(char const *str) {
     got_filename = true;
 }
 
+CircularBuffer<CallbackRecord, 128> main_callbacks;
+
 int main(void) {
     clock_setup();
     hardware_init();
@@ -81,7 +83,14 @@ int main(void) {
     
     printf("hello world!\n");
     printf("waiting for date from gps...\n");
-    while(!got_filename);
+    while(!got_filename) {
+        {
+            CallbackRecord x;
+            while(main_callbacks.read_one(x)) {
+                x.call();
+            }
+        }
+    }
     
     printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
@@ -95,6 +104,13 @@ int main(void) {
     
     while(true) {
         sdcard_poll();
+        
+        {
+            CallbackRecord x;
+            while(main_callbacks.read_one(x)) {
+                x.call();
+            }
+        }
         
         float vdd = measure_vdd();
         if(hardware_get_battery_really_dead(vdd)) {
