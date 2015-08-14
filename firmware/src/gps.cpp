@@ -126,7 +126,6 @@ static void got_byte(void *, uint32_t data2) {
             printf("gps: success %i %i\n", packet[0], packet_pos);
             
             if(logging_enabled) {
-                //cm_disable_interrupts();
                 if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
                     assert(sdcard_buf.write_one(DLE));
                     assert(sdcard_buf.write_one(packet[0]));
@@ -141,7 +140,6 @@ static void got_byte(void *, uint32_t data2) {
                     assert(sdcard_buf.write_one(DLE));
                     assert(sdcard_buf.write_one(ETX));
                 }
-                //cm_enable_interrupts();
             }
             
             if(packet[0] == 0xF5 && !called_got_date_string) {

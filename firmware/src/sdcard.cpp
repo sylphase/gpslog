@@ -223,10 +223,8 @@ void sdcard_poll() {
     while(true) {
         if(!opened) continue;
         
-        cm_disable_interrupts();
         uint32_t count = sdcard_buf.read_contiguous_available();
         uint8_t const * data = sdcard_buf.read_pointer();
-        cm_enable_interrupts();
         
         if(count) {
             UINT written;
@@ -246,7 +244,6 @@ void sdcard_poll() {
 }
 
 void sdcard_log(uint32_t length, uint8_t const * data) {
-    cm_disable_interrupts();
     if(sdcard_buf.write_available() < length) {
         // drop
         printf("sdcard_log dropped something\n");
@@ -255,7 +252,6 @@ void sdcard_log(uint32_t length, uint8_t const * data) {
             assert(sdcard_buf.write_one(*data++));
         }
     }
-    cm_enable_interrupts();
 }
 
 DRESULT disk_write (
