@@ -15,7 +15,6 @@
 #include "serial.h"
 #include "gps.h"
 #include "sdcard.h"
-#include "coroutine.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -58,16 +57,6 @@ void got_date_string(char const *str) {
 
 CircularBuffer<CallbackRecord, 128> main_callbacks;
 
-void test_coroutine_func(int a) {
-    for(int i = 0; i < 100; i++) {
-        printf("i %i a %i\n", i, a);
-        yield();
-        printf("i2 %i a %i\n", i, a);
-    }
-}
-
-Coroutine<512> test_coroutine;
-
 int main(void) {
     clock_setup();
     hardware_init();
@@ -76,19 +65,6 @@ int main(void) {
     
     time_init();
     serial_setup();
-    
-    printf("start\n");
-    bool finished = test_coroutine.start([]() {
-        test_coroutine_func(42);
-    });
-    printf("mid\n");
-    while(!finished) {
-        finished = test_coroutine.run_some();
-    }
-    
-    printf("done\n");
-    
-    while(true);
     
     delay(0.0001); // wait for battery voltage to dip
     {
