@@ -25,7 +25,7 @@ extern CircularBuffer<CallbackRecord, 128> main_callbacks;
 
 void call_at(uint64_t tick, RunnerBase & call);
 
-void delay2(double dt);
+void yield_delay(double dt);
 
 void reactor_run();
 

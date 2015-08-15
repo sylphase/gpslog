@@ -24,7 +24,7 @@ static uint8_t const ETX = 0x03;
 static uint8_t const CRC = 0xFF;
 
 static void send_command(uint8_t id, int length, uint8_t const *data) {
-    delay2(0.5);
+    yield_delay(0.5);
     usart_send_blocking(USART1, DLE);
     usart_send_blocking(USART1, id);
     for(int i = 0; i < length; i++) {

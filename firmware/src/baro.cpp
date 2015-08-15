@@ -32,14 +32,14 @@ static Coroutine<512> baro_coroutine;
 static void baro_main() {
     uint16_t prom[8];
     send_command(0x1E); // Reset
-    delay2(15e-3);
+    yield_delay(15e-3);
     for(int i = 0; i < 8; i++) {
         uint8_t buf[2];
         send_command(0xA0 + 2 * i, 2, buf); // PROM Read
         prom[i] = (buf[0] << 8) | buf[1];
         printf("prom[%i] = %i\n", i, prom[i]);
     }
-    while(true) delay2(1);
+    while(true) yield_delay(1);
 }
 
 void baro_init() {

@@ -145,7 +145,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     }
     my_spi_xfer(0xFF);
     gpio_set(GPIOA, GPIO15);
-    delay2(1e-6);
+    yield_delay(1e-6);
     return resp;
 }
 
@@ -188,7 +188,7 @@ void sdcard_init() {
     
     // implemented referencing http://elm-chan.org/docs/mmc/mmc_e.html
     
-    delay2(1e-3);
+    yield_delay(1e-3);
     
     for(int i = 0; i < (74+7)/8; i++) my_spi_xfer(0xFF);
     

@@ -2,7 +2,7 @@
 
 #include "time.h"
 
-void delay2(double dt) {
+void yield_delay(double dt) {
     CoroutineBase * cc = current_coroutine;
     assert(cc);
     auto f = [&]() {
