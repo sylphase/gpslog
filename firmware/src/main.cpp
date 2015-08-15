@@ -34,14 +34,14 @@ void _exit(int status) {
     // nothing here should depend on interrupts ... since we might have been servicing an interrupt
     while(true) {
         set_led_color(10, 0, 0);
-        delay(.25); // time stuff normally uses interrupts, but will work (kinda) if interrupts aren't working
+        busy_delay(.25); // time stuff normally uses interrupts, but will work (kinda) if interrupts aren't working
         set_led_color(0, 10, 0);
-        delay(.25);
+        busy_delay(.25);
         
         float vdd = measure_vdd();
         if(hardware_get_battery_really_dead(vdd)) {
             set_led_color(10, 0, 0);
-            delay(0.001);
+            busy_delay(0.001);
             poweroff();
         }
     }
@@ -71,7 +71,7 @@ int main(void) {
         
         serial_setup();
         
-        delay(0.0001); // wait for battery voltage to dip
+        busy_delay(0.0001); // wait for battery voltage to dip
         {
             float vdd = measure_vdd();
             printf("vdd: %f\n", vdd);
@@ -109,7 +109,7 @@ int main(void) {
             float vdd = measure_vdd();
             if(hardware_get_battery_really_dead(vdd)) {
                 set_led_color(10, 0, 0);
-                delay(0.001);
+                busy_delay(0.001);
                 poweroff();
             }
             
