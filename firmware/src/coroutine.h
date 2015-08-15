@@ -16,6 +16,7 @@ public:
     CoroutineBase() :
         sentinel_(0xDEADBEEF) {
     }
+    friend inline void sanity_check();
     friend inline void yield();
     friend void runner_helper();
     virtual bool run_some() = 0;
@@ -25,9 +26,18 @@ public:
 
 extern CoroutineBase *current_coroutine;
 
-inline void yield() {
+inline void sanity_check() {
     assert(current_coroutine);
+    uint8_t * sp;
+    asm volatile (
+        "mov %0, sp\n"
+    : "=r"(sp));
+    assert(sp > reinterpret_cast<volatile uint8_t *>(&current_coroutine->sentinel_) + 512);
     assert(current_coroutine->sentinel_ == 0xDEADBEEF);
+}
+
+inline void yield() {
+    sanity_check();
     if(setjmp(current_coroutine->j2_)) {
     } else {
         longjmp(current_coroutine->j_, 1);

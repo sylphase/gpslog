@@ -27,7 +27,7 @@ static void send_command(uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
     gpio_set(GPIOB, GPIO12);
 }
 
-static Coroutine<512> baro_coroutine;
+static Coroutine<1024> baro_coroutine;
 
 static void baro_main() {
     uint16_t prom[8];
