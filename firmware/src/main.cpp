@@ -31,10 +31,11 @@ extern "C" {
 
 void _exit(int status) {
     // called on assertion failure - blink red/green to indicate
+    // assert's print won't do anything weird since it uses stderr and, as a result, blocking usart calls
     // nothing here should depend on interrupts ... since we might have been servicing an interrupt
     while(true) {
         set_led_color(10, 0, 0);
-        busy_delay(.25); // time stuff normally uses interrupts, but will work (kinda) if interrupts aren't working
+        busy_delay(.25); // time stuff normally uses interrupts, but will work (possibly losing time elsewhere) if interrupts aren't working
         set_led_color(0, 10, 0);
         busy_delay(.25);
         
@@ -60,7 +61,7 @@ void got_date_string(char const *str) {
     got_filename = true;
 }
 
-static Coroutine<1024> main_coroutine;
+static Coroutine<2048> main_coroutine;
 
 int main(void) {
     clock_setup();

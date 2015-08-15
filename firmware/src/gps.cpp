@@ -83,15 +83,16 @@ static bool called_got_date_string = false;
 volatile static uint8_t current_byte;
 
 void parse_coroutine_function() {
+    // this coroutine doesn't currently use the reactor, so printf/any other yielding functions aren't allowed
     while(true) {
 start:
         yield(); if(current_byte != DLE)  {
-            printf("gps: junk: %i\n", current_byte);
+            fprintf(stderr, "gps: junk: %i\n", current_byte);
             goto start;
         }
         yield();
         if(current_byte == ETX || current_byte == DLE || current_byte == CRC) {
-            printf("gps: invalid id: %i\n", current_byte);
+            fprintf(stderr, "gps: invalid id: %i\n", current_byte);
             goto start;
         }
         packet[0] = current_byte;
@@ -102,19 +103,19 @@ start:
                 yield();
                 if(current_byte == DLE) {
                     if(packet_pos == sizeof(packet)) {
-                        printf("gps: packet too long\n");
+                        fprintf(stderr, "gps: packet too long\n");
                         goto start;
                     }
                     packet[packet_pos++] = DLE;
                 } else if(current_byte == ETX) {
                     break;
                 } else {
-                    printf("gps: DLE followed by %i\n", current_byte);
+                    fprintf(stderr, "gps: DLE followed by %i\n", current_byte);
                     goto start;
                 }
             } else {
                 if(packet_pos == sizeof(packet)) {
-                    printf("gps: packet too long\n");
+                    fprintf(stderr, "gps: packet too long\n");
                     goto start;
                 }
                 packet[packet_pos++] = current_byte;
@@ -122,7 +123,7 @@ start:
         }
         
         // process packet
-        printf("gps: success %i %i\n", packet[0], packet_pos);
+        fprintf(stderr, "gps: success %i %i\n", packet[0], packet_pos);
         
         if(logging_enabled) {
             if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
@@ -151,7 +152,7 @@ start:
             assert(tm);
             char date[100];
             strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
-            //printf("time: %s\n", date);
+            //fprintf(stderr, "time: %s\n", date);
             got_date_string(date);
             called_got_date_string = true;
         }

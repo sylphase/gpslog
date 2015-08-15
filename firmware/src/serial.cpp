@@ -6,9 +6,53 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
+#include <libopencm3/cm3/cortex.h>
 
 #include "serial.h"
 #include "hardware.h"
+#include "coroutine.h"
+#include "reactor.h"
+
+static CoroutineBase *coroutine_waiting_for_usart2_interrupt = nullptr;
+
+static void got_interrupt(void *, uint32_t) {
+    assert(coroutine_waiting_for_usart2_interrupt);
+    CoroutineBase *x = coroutine_waiting_for_usart2_interrupt;
+    coroutine_waiting_for_usart2_interrupt = nullptr;
+    assert(!x->run_some());
+}
+
+extern "C" {
+
+void usart2_isr(void) {
+    assert(USART_CR1(USART2) & USART_CR1_TXEIE);
+    assert(USART_SR(USART2) & USART_SR_TXE);
+    
+    usart_disable_tx_interrupt(USART2);
+    
+    assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+}
+
+}
+
+static void my_usart_send_blocking(uint8_t x) {
+    if(0) {
+        while ((USART_SR(USART2) & USART_SR_TXE) == 0);
+    } else {
+        while(coroutine_waiting_for_usart2_interrupt) yield_delay(1e-6);
+        coroutine_waiting_for_usart2_interrupt = current_coroutine;
+        
+        cm_disable_interrupts();
+        usart_enable_tx_interrupt(USART2);
+        cm_enable_interrupts();
+        
+        yield();
+        
+        while ((USART_SR(USART2) & USART_SR_TXE) == 0);
+        assert(USART_SR(USART2) & USART_SR_TXE);
+    }
+    USART_DR(USART2) = (x & USART_DR_MASK);
+}
 
 void serial_setup(void) {
     rcc_periph_reset_pulse(RST_USART2); rcc_periph_clock_enable(RCC_USART2);
@@ -37,7 +81,15 @@ void serial_setup(void) {
 extern "C" {
 
 int _write(int file, char *ptr, int len) {
-    if(file == STDOUT_FILENO || file == STDERR_FILENO) {
+    if(file == STDOUT_FILENO) {
+        for(int i = 0; i < len; i++) {
+            if(ptr[i] == '\n') {
+                my_usart_send_blocking('\r');
+            }
+            my_usart_send_blocking(ptr[i]);
+        }
+        return len;
+    } else if(file == STDERR_FILENO) {
         for(int i = 0; i < len; i++) {
             if(ptr[i] == '\n') {
                 usart_send_blocking(USART2, '\r');
@@ -45,13 +97,10 @@ int _write(int file, char *ptr, int len) {
             usart_send_blocking(USART2, ptr[i]);
         }
         return len;
+    } else {
+        errno = EIO;
+        return -1;
     }
-    errno = EIO;
-    return -1;
-}
-
-void usart2_isr(void) {
-    assert(false);
 }
 
 }

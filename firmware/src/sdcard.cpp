@@ -68,6 +68,7 @@ void spi1_isr(void) {
 
 uint8_t my_spi_xfer(uint8_t data) {
     SPI_DR(SPI1) = data;
+    assert(!coroutine_waiting_for_spi1_interrupt);
     coroutine_waiting_for_spi1_interrupt = current_coroutine;
     yield();
     return SPI_DR(SPI1);
