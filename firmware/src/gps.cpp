@@ -142,7 +142,7 @@ start:
         }
         
         if(packet[0] == 0xF5 && !called_got_date_string) {
-            double x; memcpy(&x, packet+1, 8);
+            double x; memcpy(&x, packet+1, 8); // XXX endianness
             int16_t week = packet[9] | (packet[10] << 8);
             double s = 315964800 + 24*60*60*7 * (1024+week) + x/1000;
             std::time_t t;

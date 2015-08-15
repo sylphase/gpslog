@@ -29,6 +29,40 @@ static void send_command(uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
 
 static Coroutine<1024> baro_coroutine;
 
+struct Result {
+    double temperature; // kelvin
+    double pressure; // pascals
+};
+
+void decode(uint16_t prom[8], uint32_t D1, uint32_t D2, Result & res) {
+    double dT = D2 - prom[5] * pow(2, 8);
+    double TEMP = 2000 + dT*prom[6]/pow(2, 23);
+    
+    double T2, OFF2, SENS2;
+    if(TEMP < 2000) {
+        T2 = pow(dT, 2) / pow(2, 31);
+        OFF2 = 5 * pow(TEMP - 2000, 2) / pow(2, 1);
+        SENS2 = 5 * pow(TEMP - 2000, 2) / pow(2, 2);
+        if(TEMP < -1500) {
+            OFF2 += 7 * pow(TEMP + 1500, 2);
+            SENS2 += 11 * pow(TEMP + 1500, 2) / pow(2, 1);
+        }
+    } else {
+        T2 = 0;
+        OFF2 = 0;
+        SENS2 = 0;
+    }
+    TEMP -= T2;
+    
+    double OFF = prom[2]*pow(2, 16) + prom[4]*dT/pow(2, 7);
+    OFF -= OFF2;
+    double SENS = prom[1]*pow(2, 15) + prom[3]*dT/pow(2, 8);
+    SENS -= SENS2;
+    
+    res.temperature = TEMP/100 + 273.15;
+    res.pressure = (D1*SENS/pow(2, 21) - OFF)/pow(2, 15);
+}
+
 static void baro_main() {
     uint16_t prom[8];
     send_command(0x1E); // Reset
@@ -39,7 +73,21 @@ static void baro_main() {
         prom[i] = (buf[0] << 8) | buf[1];
         printf("prom[%i] = %i\n", i, prom[i]);
     }
-    while(true) yield_delay(1);
+    while(true) {
+        send_command(0x48); // Convert D1 (OSR=4096)
+        yield_delay(9.04e-3);
+        uint8_t D1[3]; send_command(0x00, 3, D1); // ADC Read
+        send_command(0x58); // Convert D2 (OSR=4096)
+        yield_delay(9.04e-3);
+        uint8_t D2[3]; send_command(0x00, 3, D2); // ADC Read
+        
+        Result res; decode(prom,
+            (D1[0] << 16) | (D1[1] << 8) | D1[2],
+            (D2[0] << 16) | (D2[1] << 8) | D2[2],
+        res);
+        
+        printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+    }
 }
 
 void baro_init() {
