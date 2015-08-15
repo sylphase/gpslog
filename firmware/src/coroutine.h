@@ -72,15 +72,16 @@ public:
         Runner<Function> runner(func);
         to_run = &runner;
         
+        CoroutineBase * old_current_coroutine = current_coroutine;
+        
         assert(!started_);
         int x = setjmp(j_);
         if(x) {
-            current_coroutine = nullptr;
+            current_coroutine = old_current_coroutine;
             bool finished = x == 2;
             started_ = !finished;
             return finished;
         } else {
-            assert(!current_coroutine);
             current_coroutine = this;
             started_ = true;
             uint32_t new_sp = reinterpret_cast<uint32_t>(stack_ + StackSize + 7) & (~7);
@@ -92,15 +93,16 @@ public:
         }
     }
     bool run_some() {
+        CoroutineBase * old_current_coroutine = current_coroutine;
+        
         assert(started_);
         int x = setjmp(j_);
         if(x) {
-            current_coroutine = nullptr;
+            current_coroutine = old_current_coroutine;
             bool finished = x == 2;
             started_ = !finished;
             return finished;
         } else {
-            assert(!current_coroutine);
             current_coroutine = this;
             longjmp(j2_, 1);
         }

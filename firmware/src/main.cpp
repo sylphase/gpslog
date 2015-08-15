@@ -80,9 +80,9 @@ int main(void) {
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
-    baro_init();
-    
     auto main_function = []() {
+        baro_init();
+        
         sdcard_init();
         
         printf("sdcard mounted, starting gps\n");
