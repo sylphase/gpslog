@@ -63,22 +63,23 @@ void got_date_string(char const *str) {
 int main(void) {
     clock_setup();
     time_init();
-    hardware_init();
-    
-    set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
-    
-    serial_setup();
-    
-    delay(0.0001); // wait for battery voltage to dip
-    {
-        float vdd = measure_vdd();
-        printf("vdd: %f\n", vdd);
-        if(hardware_get_battery_dead(vdd)) {
-            poweroff();
-        }
-    }
     
     auto main_function = []() {
+        hardware_init();
+        
+        set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
+        
+        serial_setup();
+        
+        delay(0.0001); // wait for battery voltage to dip
+        {
+            float vdd = measure_vdd();
+            printf("vdd: %f\n", vdd);
+            if(hardware_get_battery_dead(vdd)) {
+                poweroff();
+            }
+        }
+        
         set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
         
         baro_init();
