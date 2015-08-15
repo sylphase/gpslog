@@ -11,7 +11,11 @@ class CoroutineBase {
 protected:
     jmp_buf j_;
     jmp_buf j2_;
+    volatile uint32_t sentinel_;
 public:
+    CoroutineBase() :
+        sentinel_(0xDEADBEEF) {
+    }
     friend inline void yield();
     friend void runner_helper();
     virtual bool run_some() = 0;
@@ -23,6 +27,7 @@ extern CoroutineBase *current_coroutine;
 
 inline void yield() {
     assert(current_coroutine);
+    assert(current_coroutine->sentinel_ == 0xDEADBEEF);
     if(setjmp(current_coroutine->j2_)) {
     } else {
         longjmp(current_coroutine->j_, 1);
@@ -56,8 +61,8 @@ void runner_helper();
 
 template<unsigned int StackSize>
 class Coroutine : public CoroutineBase {
-    bool started_;
     uint8_t stack_[StackSize+7];
+    bool started_;
 public:
     Coroutine() :
         started_(false) {

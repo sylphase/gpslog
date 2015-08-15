@@ -1,0 +1,56 @@
+#!/usr/bin/python
+
+from __future__ import division
+
+import subprocess
+import sys
+import itertools
+
+x = subprocess.check_output(['arm-none-eabi-nm', sys.argv[1]])
+
+res = {}
+for line in x.splitlines():
+    addr, flag, name = line.strip().split(' ')
+    addr = int(addr, 16)
+    res[addr] = res.get(addr, ()) + (name,)
+
+res = sorted(res.iteritems())
+
+def space(addr):
+    if addr & 0xff000000 == 0x08000000:
+        return 'rom'
+    elif addr & 0xff000000 == 0x20000000:
+        return 'ram'
+    else:
+        assert False
+
+ram_data = []
+rom_data = []
+
+for i, (addr, name) in enumerate(res):
+    for j in xrange(i+1, len(res)):
+        addr2, name2 = res[j]
+        if addr2 != addr: break
+    else:
+        continue
+    
+    if space(addr) != space(addr2): continue
+    
+    size = addr2 - addr
+    
+    if space(addr) == 'rom':
+        rom_data.append((size, name, name2))
+    elif space(addr) == 'ram':
+        ram_data.append((size, name, name2))
+    else:
+        assert False
+
+ram_data.sort()
+rom_data.sort()
+
+RAM_SIZE = 20*1024
+
+cum_size = 0
+for size, name, name2 in ram_data:
+    cum_size += size
+    print '%.3f %.03f' % (size/RAM_SIZE, cum_size/RAM_SIZE), ' '.join(name).ljust(30), ' '.join(name2)

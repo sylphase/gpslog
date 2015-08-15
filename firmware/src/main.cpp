@@ -60,6 +60,8 @@ void got_date_string(char const *str) {
     got_filename = true;
 }
 
+static Coroutine<1024> main_coroutine;
+
 int main(void) {
     clock_setup();
     time_init();
@@ -116,7 +118,7 @@ int main(void) {
             yield_delay(0.01); // XXX determines maximum write speed to card!
         }
     };
-    Coroutine<1024> main_coroutine(main_function);
+    main_coroutine.start(main_function);
     
     reactor_run();
 }

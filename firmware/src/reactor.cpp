@@ -15,12 +15,14 @@ void yield_delay(double dt) {
 
 CircularBuffer<CallbackRecord, 128> main_callbacks;
 
+static const unsigned int TIME_CALLBACKS_MAX_LENGTH = 8;
+
 typedef std::pair<uint64_t, RunnerBase *> TimeCallbackElement;
-static TimeCallbackElement time_callbacks[128];
+static TimeCallbackElement time_callbacks[TIME_CALLBACKS_MAX_LENGTH];
 static uint32_t time_callbacks_length = 0;
 
 void call_at(uint64_t tick, RunnerBase & call) {
-    assert(time_callbacks_length != 128);
+    assert(time_callbacks_length != TIME_CALLBACKS_MAX_LENGTH);
     
     time_callbacks[time_callbacks_length].first = tick;
     time_callbacks[time_callbacks_length].second = &call;
