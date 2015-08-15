@@ -34,8 +34,6 @@ void serial_setup(void) {
 
 }
 
-CircularBuffer<uint8_t, 128> serial_buf;
-
 extern "C" {
 
 int _write(int file, char *ptr, int len) {
@@ -57,7 +55,6 @@ void usart2_isr(void) {
     if (((USART_CR1(USART2) & USART_CR1_RXNEIE) != 0) &&
             ((USART_SR(USART2) & USART_SR_RXNE) != 0)) {
         char data = usart_recv(USART2);
-        serial_buf.write_one(data);
     }
 }
 

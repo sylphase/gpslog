@@ -157,7 +157,7 @@ start:
         }
     }
 }
-static Coroutine<4096> parse_coroutine(parse_coroutine_function);
+static Coroutine<4096+200> parse_coroutine(parse_coroutine_function);
 
 static void got_byte(void *, uint32_t data2) {
     current_byte = data2;
