@@ -16,6 +16,7 @@
 #include "hardware.h"
 #include "sdcard.h"
 #include "main.h"
+#include "coroutine.h"
 
 static uint8_t const DLE = 0x10;
 static uint8_t const ETX = 0x03;
@@ -35,12 +36,11 @@ static void send_command(uint8_t id, int length, uint8_t const *data) {
     }
     usart_send_blocking(USART1, DLE);
     usart_send_blocking(USART1, ETX);
+    delay(0);
 }
 
 void gps_setup(void) {
     rcc_periph_reset_pulse(RST_USART1); rcc_periph_clock_enable(RCC_USART1);
-    
-    nvic_enable_irq(NVIC_USART1_IRQ);
     
     gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
               GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART1_TX);
@@ -66,6 +66,7 @@ void gps_setup(void) {
     send_command(0xd5, 1, (uint8_t const []){1}); // bit information
     send_command(0xf4, 1, (uint8_t const []){1}); // 10 Hz raw data
     
+    nvic_enable_irq(NVIC_USART1_IRQ);
     usart_enable_rx_interrupt(USART1);
 }
 
@@ -74,105 +75,103 @@ void gps_start_logging() {
     logging_enabled = true;
 }
 
-enum class ParseState : uint8_t {
-    WAITING_FOR_DLE,
-    WAITING_FOR_ID,
-    READING,
-    READING_AFTER_DLE,
-};
-static ParseState parse_state = ParseState::WAITING_FOR_DLE;
 static uint8_t packet[1024];
 static uint16_t packet_pos;
 
 static bool called_got_date_string = false;
 
-static void got_byte(void *, uint32_t data2) {
-    uint8_t data = data2;
-    
-    if(packet_pos == sizeof(packet)) {
-        // abort if we would overrun
-        parse_state = ParseState::WAITING_FOR_DLE;
-    }
-    
-    if(parse_state == ParseState::WAITING_FOR_DLE) {
-        if(data == DLE) {
-            parse_state = ParseState::WAITING_FOR_ID;
-        } else {
-            printf("gps: junk %i\n", data);
+volatile static uint8_t current_byte;
+
+void parse_coroutine_function() {
+    while(true) {
+start:
+        yield(); if(current_byte != DLE)  {
+            printf("gps: junk: %i\n", current_byte);
+            goto start;
         }
-    } else if(parse_state == ParseState::WAITING_FOR_ID) {
-        if(data == ETX || data == DLE || data == CRC) {
-            printf("gps: invalid id: %i\n", data);
-            parse_state = ParseState::WAITING_FOR_DLE;
-        } else {
-            packet[0] = data;
-            packet_pos = 1;
-            parse_state = ParseState::READING;
+        yield();
+        if(current_byte == ETX || current_byte == DLE || current_byte == CRC) {
+            printf("gps: invalid id: %i\n", current_byte);
+            goto start;
         }
-    } else if(parse_state == ParseState::READING) {
-        if(data == DLE) {
-            parse_state = ParseState::READING_AFTER_DLE;
-        } else {
-            packet[packet_pos++] = data;
-        }
-    } else if(parse_state == ParseState::READING_AFTER_DLE) {
-        if(data == DLE) {
-            packet[packet_pos++] = DLE;
-            parse_state = ParseState::READING;
-        } else if(data == ETX) {
-            // done!
-            // process packet, but remember that we are in an interrupt handler
-            
-            printf("gps: success %i %i\n", packet[0], packet_pos);
-            
-            if(logging_enabled) {
-                if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
-                    assert(sdcard_buf.write_one(DLE));
-                    assert(sdcard_buf.write_one(packet[0]));
-                    for(uint16_t i = 1; i < packet_pos; i++) {
-                        if(packet[i] == DLE) {
-                            assert(sdcard_buf.write_one(DLE));
-                            assert(sdcard_buf.write_one(DLE));
-                        } else {
-                            assert(sdcard_buf.write_one(packet[i]));
-                        }
+        packet[0] = current_byte;
+        packet_pos = 1;
+        while(true) {
+            yield();
+            if(current_byte == DLE) {
+                yield();
+                if(current_byte == DLE) {
+                    if(packet_pos == sizeof(packet)) {
+                        printf("gps: packet too long\n");
+                        goto start;
                     }
-                    assert(sdcard_buf.write_one(DLE));
-                    assert(sdcard_buf.write_one(ETX));
+                    packet[packet_pos++] = DLE;
+                } else if(current_byte == ETX) {
+                    break;
+                } else {
+                    printf("gps: DLE followed by %i\n", current_byte);
+                    goto start;
                 }
+            } else {
+                if(packet_pos == sizeof(packet)) {
+                    printf("gps: packet too long\n");
+                    goto start;
+                }
+                packet[packet_pos++] = current_byte;
             }
-            
-            if(packet[0] == 0xF5 && !called_got_date_string) {
-                double x; memcpy(&x, packet+1, 8);
-                int16_t week = packet[9] | (packet[10] << 8);
-                double s = 315964800 + 24*60*60*7 * (1024+week) + x/1000;
-                std::time_t t;
-                t = s;
-                std::tm const * tm = gmtime(&t);
-                assert(tm);
-                char date[100];
-                strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
-                //printf("time: %s\n", date);
-                got_date_string(date);
-                called_got_date_string = true;
+        }
+        
+        // process packet
+        printf("gps: success %i %i\n", packet[0], packet_pos);
+        
+        if(logging_enabled) {
+            if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
+                assert(sdcard_buf.write_one(DLE));
+                assert(sdcard_buf.write_one(packet[0]));
+                for(uint16_t i = 1; i < packet_pos; i++) {
+                    if(packet[i] == DLE) {
+                        assert(sdcard_buf.write_one(DLE));
+                        assert(sdcard_buf.write_one(DLE));
+                    } else {
+                        assert(sdcard_buf.write_one(packet[i]));
+                    }
+                }
+                assert(sdcard_buf.write_one(DLE));
+                assert(sdcard_buf.write_one(ETX));
             }
-            
-            parse_state = ParseState::WAITING_FOR_DLE;
-        } else {
-            printf("gps: DLE followed by %i\n", data);
-            parse_state = ParseState::WAITING_FOR_DLE;
+        }
+        
+        if(packet[0] == 0xF5 && !called_got_date_string) {
+            double x; memcpy(&x, packet+1, 8);
+            int16_t week = packet[9] | (packet[10] << 8);
+            double s = 315964800 + 24*60*60*7 * (1024+week) + x/1000;
+            std::time_t t;
+            t = s;
+            std::tm const * tm = gmtime(&t);
+            assert(tm);
+            char date[100];
+            strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
+            //printf("time: %s\n", date);
+            got_date_string(date);
+            called_got_date_string = true;
         }
     }
+}
+static Coroutine<4096> parse_coroutine(parse_coroutine_function);
+
+static void got_byte(void *, uint32_t data2) {
+    current_byte = data2;
+    assert(!parse_coroutine.run_some());
 }
 
 extern "C" {
 
 void usart1_isr(void) {
     USART_SR(USART1);
+    if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
     uint8_t data = usart_recv(USART1);
     
-    //if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
-    //if(!((USART_SR(USART1) & USART_SR_RXNE) != 0)) return;
+    if(!((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0)) return;
     
     main_callbacks.write_one(CallbackRecord(got_byte, nullptr, data));
 }

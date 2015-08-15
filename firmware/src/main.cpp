@@ -45,6 +45,8 @@ void _exit(int status) {
     }
 }
 
+void * __dso_handle = nullptr;
+
 }
 
 
@@ -82,38 +84,35 @@ int main(void) {
     
     gps_setup();
     
-    printf("hello world!\n");
-    printf("waiting for date from gps...\n");
-    while(!got_filename) {
-        {
-            CallbackRecord x;
-            while(main_callbacks.read_one(x)) {
-                x.call();
-            }
-        }
-    }
-    
-    printf("got date filename: %s! opening\n", filename);
-    sdcard_open(filename);
-    
-    uint8_t const msg[] = "start of log\r\n";
-    sdcard_log(sizeof(msg), msg);
-    
-    gps_start_logging();
-    
-    set_led_color(0, 1, 0);
-    
-    Coroutine<1024> sdcard_poll_coroutine;
-    sdcard_poll_coroutine.start(sdcard_poll);
-    
-    auto test_coroutine_func = []() {
+    auto sdcard_poll_function = []() {
+        printf("hello world!\n");
+        printf("waiting for date from gps...\n");
+        while(!got_filename) yield();
+        printf("got date filename: %s! opening\n", filename);
+        sdcard_open(filename);
+        
+        uint8_t const msg[] = "start of log\r\n";
+        sdcard_log(sizeof(msg), msg);
+        
+        gps_start_logging();
+        
+        set_led_color(0, 1, 0);
+        
         while(true) {
-            printf("test\n");
+            sdcard_poll();
+            
+            float vdd = measure_vdd();
+            if(hardware_get_battery_really_dead(vdd)) {
+                set_led_color(10, 0, 0);
+                delay(0.001);
+                poweroff();
+            }
+            
             yield();
         }
     };
-    Coroutine<1024> test_coroutine;
-    test_coroutine.start(test_coroutine_func);
+    Coroutine<1024> sdcard_poll_coroutine;
+    sdcard_poll_coroutine.start(sdcard_poll_function);
     
     while(true) {
         assert(!sdcard_poll_coroutine.run_some());
@@ -123,13 +122,6 @@ int main(void) {
             while(main_callbacks.read_one(x)) {
                 x.call();
             }
-        }
-        
-        float vdd = measure_vdd();
-        if(hardware_get_battery_really_dead(vdd)) {
-            set_led_color(10, 0, 0);
-            delay(0.001);
-            poweroff();
         }
     }
 

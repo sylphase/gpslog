@@ -109,10 +109,10 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         spi_xfer(SPI1, data_crc >> 8); // CRC
         spi_xfer(SPI1, data_crc & 0xFF);
         uint8_t data_resp = spi_xfer(SPI1, 0xFF);
-        printf("data_resp: %i\n", data_resp);
+        //printf("data_resp: %i\n", data_resp);
         assert((data_resp & 0b11111) == 0b00101);
         while(spi_xfer(SPI1, 0xFF) != 0xFF) yield();
-        printf("done\n");
+        //printf("done\n");
     }
     spi_xfer(SPI1, 0xFF);
     gpio_set(GPIOA, GPIO15);
@@ -220,26 +220,22 @@ void sdcard_open(char const * filename) {
 }
 
 void sdcard_poll() {
-    while(true) {
-        if(!opened) continue;
+    if(!opened) return;
+    
+    uint32_t count = sdcard_buf.read_contiguous_available();
+    uint8_t const * data = sdcard_buf.read_pointer();
+    
+    if(count) {
+        UINT written;
+        assert(f_write(&file, data, count, &written) == FR_OK);
+        assert(written <= count);
+        sdcard_buf.read_skip(written);
+    }
+    
+    if(time_get_ticks() >= next_sync_time) {
+        f_sync(&file);
         
-        uint32_t count = sdcard_buf.read_contiguous_available();
-        uint8_t const * data = sdcard_buf.read_pointer();
-        
-        if(count) {
-            UINT written;
-            assert(f_write(&file, data, count, &written) == FR_OK);
-            assert(written <= count);
-            sdcard_buf.read_skip(written);
-        }
-        
-        if(time_get_ticks() >= next_sync_time) {
-            f_sync(&file);
-            
-            next_sync_time = time_get_ticks() + SYNC_PERIOD * time_get_ticks_per_second();
-        }
-        
-        yield();
+        next_sync_time = time_get_ticks() + SYNC_PERIOD * time_get_ticks_per_second();
     }
 }
 

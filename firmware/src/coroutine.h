@@ -62,6 +62,11 @@ public:
         started_(false) {
     }
     template<typename Function>
+    Coroutine(Function & func) :
+        Coroutine() {
+        assert(!start(func));
+    }
+    template<typename Function>
     bool start(Function & func) { // returns finished
         Runner<Function> runner(func);
         to_run = &runner;
