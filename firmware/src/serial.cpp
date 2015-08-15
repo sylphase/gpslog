@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <errno.h>
+#include <cassert>
 
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/rcc.h>
@@ -20,14 +21,13 @@ void serial_setup(void) {
 
     /* Setup UART parameters. */
     usart_set_baudrate(USART2, 115200);
-    usart_set_databits(USART2, 9);
+    usart_set_databits(USART2, 8);
     usart_set_stopbits(USART2, USART_STOPBITS_1);
     usart_set_mode(USART2, USART_MODE_TX_RX);
-    usart_set_parity(USART2, USART_PARITY_ODD);
+    usart_set_parity(USART2, USART_PARITY_NONE);
     usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
     
     nvic_enable_irq(NVIC_USART2_IRQ);
-    usart_enable_rx_interrupt(USART2);
 
     /* Finally enable the USART. */
     usart_enable(USART2);
@@ -51,11 +51,7 @@ int _write(int file, char *ptr, int len) {
 }
 
 void usart2_isr(void) {
-    //set_led_color(LEDColor::RED);
-    if (((USART_CR1(USART2) & USART_CR1_RXNEIE) != 0) &&
-            ((USART_SR(USART2) & USART_SR_RXNE) != 0)) {
-        char data = usart_recv(USART2);
-    }
+    assert(false);
 }
 
 }
