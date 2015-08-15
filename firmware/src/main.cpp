@@ -80,11 +80,11 @@ int main(void) {
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
-    sdcard_init();
-    
-    gps_setup();
-    
-    auto sdcard_poll_function = []() {
+    auto main_function = []() {
+        sdcard_init();
+        
+        gps_setup();
+        
         printf("hello world!\n");
         printf("waiting for date from gps...\n");
         while(!got_filename) yield();
@@ -111,11 +111,11 @@ int main(void) {
             yield();
         }
     };
-    Coroutine<1024> sdcard_poll_coroutine;
-    sdcard_poll_coroutine.start(sdcard_poll_function);
+    Coroutine<1024> main_coroutine;
+    main_coroutine.start(main_function);
     
     while(true) {
-        assert(!sdcard_poll_coroutine.run_some());
+        assert(!main_coroutine.run_some());
         
         {
             CallbackRecord x;

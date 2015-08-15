@@ -21,7 +21,7 @@ public:
 extern CoroutineBase *current_coroutine;
 
 inline void yield() {
-    if(!current_coroutine) return; //assert(current_coroutine);
+    assert(current_coroutine);
     if(setjmp(current_coroutine->j2_)) {
     } else {
         longjmp(current_coroutine->j_, 1);
