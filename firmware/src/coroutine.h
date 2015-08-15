@@ -14,6 +14,7 @@ protected:
 public:
     friend inline void yield();
     friend void runner_helper();
+    virtual bool run_some() = 0;
     virtual ~CoroutineBase() {
     };
 };

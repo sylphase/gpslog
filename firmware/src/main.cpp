@@ -16,6 +16,8 @@
 #include "gps.h"
 #include "sdcard.h"
 #include "coroutine.h"
+#include "baro.h"
+#include "reactor.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -58,8 +60,6 @@ void got_date_string(char const *str) {
     got_filename = true;
 }
 
-CircularBuffer<CallbackRecord, 128> main_callbacks;
-
 int main(void) {
     clock_setup();
     hardware_init();
@@ -80,6 +80,8 @@ int main(void) {
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
+    baro_init();
+    
     auto main_function = []() {
         sdcard_init();
         
@@ -87,7 +89,7 @@ int main(void) {
         
         printf("hello world!\n");
         printf("waiting for date from gps...\n");
-        while(!got_filename) yield();
+        while(!got_filename) delay2(0);
         printf("got date filename: %s! opening\n", filename);
         sdcard_open(filename);
         
@@ -108,22 +110,13 @@ int main(void) {
                 poweroff();
             }
             
-            yield();
+            delay2(0);
         }
     };
     Coroutine<1024> main_coroutine;
     main_coroutine.start(main_function);
     
-    while(true) {
-        assert(!main_coroutine.run_some());
-        
-        {
-            CallbackRecord x;
-            while(main_callbacks.read_one(x)) {
-                x.call();
-            }
-        }
-    }
+    reactor_run();
 
     return 0;
 }

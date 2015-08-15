@@ -16,6 +16,7 @@
 #include "hardware.h"
 #include "sdcard.h"
 #include "main.h"
+#include "reactor.h"
 #include "coroutine.h"
 
 static uint8_t const DLE = 0x10;
@@ -36,7 +37,6 @@ static void send_command(uint8_t id, int length, uint8_t const *data) {
     }
     usart_send_blocking(USART1, DLE);
     usart_send_blocking(USART1, ETX);
-    delay(0);
 }
 
 void gps_setup(void) {
