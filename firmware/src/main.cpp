@@ -85,11 +85,13 @@ int main(void) {
     auto main_function = []() {
         sdcard_init();
         
+        printf("sdcard mounted, starting gps\n");
+        
         gps_setup();
         
-        printf("hello world!\n");
+        printf("init done, hello world!\n");
         printf("waiting for date from gps...\n");
-        while(!got_filename) delay2(0);
+        while(!got_filename) delay2(0.1);
         printf("got date filename: %s! opening\n", filename);
         sdcard_open(filename);
         
@@ -110,7 +112,7 @@ int main(void) {
                 poweroff();
             }
             
-            delay2(0);
+            delay2(0.01); // XXX determines maximum write speed to card!
         }
     };
     Coroutine<1024> main_coroutine;

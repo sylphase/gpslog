@@ -4,6 +4,7 @@
 
 void delay2(double dt) {
     CoroutineBase * cc = current_coroutine;
+    assert(cc);
     auto f = [&]() {
         assert(!cc->run_some());
     };

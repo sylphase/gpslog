@@ -5,6 +5,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/cortex.h>
+#include <libopencm3/cm3/nvic.h>
 
 #include "sdcard.h"
 #include "time.h"
@@ -43,6 +44,35 @@ enum class CMDData {
     WRITE,
 };
 
+static CoroutineBase *coroutine_waiting_for_spi1_interrupt = nullptr;
+
+static void got_byte(void *, uint32_t) {
+    assert(coroutine_waiting_for_spi1_interrupt);
+    CoroutineBase *x = coroutine_waiting_for_spi1_interrupt;
+    coroutine_waiting_for_spi1_interrupt = nullptr;
+    assert(!x->run_some());
+}
+
+extern "C" {
+
+void spi1_isr(void) {
+    assert(SPI_CR2(SPI1) & SPI_CR2_RXNEIE);
+    assert(SPI_SR(SPI1) & SPI_SR_RXNE);
+    
+    SPI_DR(SPI1); // clear interrupt
+    
+    assert(main_callbacks.write_one(CallbackRecord(got_byte, nullptr, 0)));
+}
+
+}
+
+uint8_t my_spi_xfer(uint8_t data) {
+    SPI_DR(SPI1) = data;
+    coroutine_waiting_for_spi1_interrupt = current_coroutine;
+    yield();
+    return SPI_DR(SPI1);
+}
+
 static uint16_t CMD(uint8_t n, uint32_t argument,
 CMDFormat format=CMDFormat::R1, uint32_t * R2_R7_data=nullptr,
 CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
@@ -50,7 +80,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     uint8_t crc = 0;
 #define SEND(b) { \
     uint8_t _ = (b); \
-    spi_xfer(SPI1, _); \
+    my_spi_xfer(_); \
     crc = CRC7_update(crc, _); \
 }
     gpio_clear(GPIOA, GPIO15);
@@ -59,63 +89,61 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     SEND((argument >> 16) & 255);
     SEND((argument >>  8) & 255);
     SEND((argument >>  0) & 255);
-    spi_xfer(SPI1, (crc << 1) | 1);
+    my_spi_xfer((crc << 1) | 1);
     uint16_t resp;
     while(true) { // should abort after 8 bytes (N_CR)
-        resp = spi_xfer(SPI1, 0xFF);
+        resp = my_spi_xfer(0xFF);
         if((resp & 0b10000000) == 0) {
             break;
         }
-        delay2(0);
     }
     if(format == CMDFormat::R2) {
-        resp = (resp << 8) | spi_xfer(SPI1, 0xFF);
+        resp = (resp << 8) | my_spi_xfer(0xFF);
     }
     if(format == CMDFormat::R1b) {
-        while(spi_xfer(SPI1, 0xFF) == 0) delay2(0);
+        while(my_spi_xfer(0xFF) == 0);
     }
     if(format == CMDFormat::R3 || format == CMDFormat::R7) {
         *R2_R7_data = 0;
         for(int i = 0; i < 4; i++) {
             *R2_R7_data <<= 8;
-            *R2_R7_data |= spi_xfer(SPI1, 0xFF);
+            *R2_R7_data |= my_spi_xfer(0xFF);
         }
     }
     if(data_mode == CMDData::READ) {
         uint8_t token;
         while(true) {
-            token = spi_xfer(SPI1, 0xFF);
+            token = my_spi_xfer(0xFF);
             if(token != 0xFF) break;
-            delay2(0);
         }
         assert(token == 0xFE);
         uint16_t data_crc = 0;
         for(uint16_t i = 0; i < bytes; i++) {
-            uint8_t byte = spi_xfer(SPI1, 0xFF);
+            uint8_t byte = my_spi_xfer(0xFF);
             *data++ = byte;
             data_crc = CRC16_update(data_crc, byte);
         }
-        data_crc = CRC16_update(data_crc, spi_xfer(SPI1, 0xFF)); // CRC
-        data_crc = CRC16_update(data_crc, spi_xfer(SPI1, 0xFF));
+        data_crc = CRC16_update(data_crc, my_spi_xfer(0xFF)); // CRC
+        data_crc = CRC16_update(data_crc, my_spi_xfer(0xFF));
         assert(data_crc == 0);
     } else if(data_mode == CMDData::WRITE) {
-        spi_xfer(SPI1, 0xFF);
-        spi_xfer(SPI1, 0xFE);
+        my_spi_xfer(0xFF);
+        my_spi_xfer(0xFE);
         uint16_t data_crc = 0;
         for(uint16_t i = 0; i < bytes; i++) {
             uint8_t byte = *data++;
             data_crc = CRC16_update(data_crc, byte);
-            spi_xfer(SPI1, byte);
+            my_spi_xfer(byte);
         }
-        spi_xfer(SPI1, data_crc >> 8); // CRC
-        spi_xfer(SPI1, data_crc & 0xFF);
-        uint8_t data_resp = spi_xfer(SPI1, 0xFF);
+        my_spi_xfer(data_crc >> 8); // CRC
+        my_spi_xfer(data_crc & 0xFF);
+        uint8_t data_resp = my_spi_xfer(0xFF);
         //printf("data_resp: %i\n", data_resp);
         assert((data_resp & 0b11111) == 0b00101);
-        while(spi_xfer(SPI1, 0xFF) != 0xFF) delay2(0);
+        while(my_spi_xfer(0xFF) != 0xFF);
         //printf("done\n");
     }
-    spi_xfer(SPI1, 0xFF);
+    my_spi_xfer(0xFF);
     gpio_set(GPIOA, GPIO15);
     delay2(1e-6);
     return resp;
@@ -155,11 +183,14 @@ void sdcard_init() {
     
     spi_enable(SPI1);
     
+    nvic_enable_irq(NVIC_SPI1_IRQ);
+    spi_enable_rx_buffer_not_empty_interrupt(SPI1);
+    
     // implemented referencing http://elm-chan.org/docs/mmc/mmc_e.html
     
     delay2(1e-3);
     
-    for(int i = 0; i < (74+7)/8; i++) spi_xfer(SPI1, 0xFF);
+    for(int i = 0; i < (74+7)/8; i++) my_spi_xfer(0xFF);
     
     assert(CMD(0, 0) == 1); // reset, in idle state now
     
@@ -214,7 +245,7 @@ void sdcard_init() {
 
 void sdcard_open(char const * filename) {
     FRESULT x = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
-    printf("%i\n", x);
+    printf("f_open result: %i\n", x);
     assert(x == FR_OK);
     next_sync_time = 0;
     opened = true;
