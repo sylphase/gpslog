@@ -62,11 +62,11 @@ void got_date_string(char const *str) {
 
 int main(void) {
     clock_setup();
+    time_init();
     hardware_init();
     
     set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
     
-    time_init();
     serial_setup();
     
     delay(0.0001); // wait for battery voltage to dip
@@ -78,9 +78,9 @@ int main(void) {
         }
     }
     
-    set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
-    
     auto main_function = []() {
+        set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
+        
         baro_init();
         
         sdcard_init();
@@ -115,10 +115,7 @@ int main(void) {
             delay2(0.01); // XXX determines maximum write speed to card!
         }
     };
-    Coroutine<1024> main_coroutine;
-    main_coroutine.start(main_function);
+    Coroutine<1024> main_coroutine(main_function);
     
     reactor_run();
-
-    return 0;
 }
