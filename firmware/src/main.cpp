@@ -62,64 +62,63 @@ void got_date_string(char const *str) {
 }
 
 static Coroutine<2048> main_coroutine;
+    
+auto main_function = []() {
+    hardware_init();
+    
+    set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
+    
+    serial_setup();
+    
+    busy_delay(0.0001); // wait for battery voltage to dip
+    {
+        float vdd = measure_vdd();
+        printf("vdd: %f\n", vdd);
+        if(hardware_get_battery_dead(vdd)) {
+            poweroff();
+        }
+    }
+    
+    set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
+    
+    baro_init();
+    
+    sdcard_init();
+    
+    printf("sdcard mounted, starting gps\n");
+    
+    gps_setup();
+    
+    printf("init done, hello world!\n");
+    printf("waiting for date from gps...\n");
+    while(!got_filename) yield_delay(0.1);
+    printf("got date filename: %s! opening\n", filename);
+    sdcard_open(filename);
+    
+    uint8_t const msg[] = "start of log\r\n";
+    sdcard_log(sizeof(msg), msg);
+    
+    gps_start_logging();
+    
+    set_led_color(0, 1, 0);
+    
+    while(true) {
+        sdcard_poll();
+        
+        float vdd = measure_vdd();
+        if(hardware_get_battery_really_dead(vdd)) {
+            set_led_color(10, 0, 0);
+            busy_delay(0.001);
+            poweroff();
+        }
+        
+        yield_delay(0.01); // XXX determines maximum write speed to card!
+    }
+};
 
 int main(void) {
     clock_setup();
     time_init();
-    
-    auto main_function = []() {
-        hardware_init();
-        
-        set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
-        
-        serial_setup();
-        
-        busy_delay(0.0001); // wait for battery voltage to dip
-        {
-            float vdd = measure_vdd();
-            printf("vdd: %f\n", vdd);
-            if(hardware_get_battery_dead(vdd)) {
-                poweroff();
-            }
-        }
-        
-        set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
-        
-        baro_init();
-        
-        sdcard_init();
-        
-        printf("sdcard mounted, starting gps\n");
-        
-        gps_setup();
-        
-        printf("init done, hello world!\n");
-        printf("waiting for date from gps...\n");
-        while(!got_filename) yield_delay(0.1);
-        printf("got date filename: %s! opening\n", filename);
-        sdcard_open(filename);
-        
-        uint8_t const msg[] = "start of log\r\n";
-        sdcard_log(sizeof(msg), msg);
-        
-        gps_start_logging();
-        
-        set_led_color(0, 1, 0);
-        
-        while(true) {
-            sdcard_poll();
-            
-            float vdd = measure_vdd();
-            if(hardware_get_battery_really_dead(vdd)) {
-                set_led_color(10, 0, 0);
-                busy_delay(0.001);
-                poweroff();
-            }
-            
-            yield_delay(0.01); // XXX determines maximum write speed to card!
-        }
-    };
     main_coroutine.start(main_function);
-    
     reactor_run();
 }
