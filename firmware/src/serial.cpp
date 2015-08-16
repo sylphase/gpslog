@@ -36,9 +36,7 @@ void usart2_isr(void) {
 }
 
 static void my_usart_send_blocking(uint8_t x) {
-    if(0) {
-        while ((USART_SR(USART2) & USART_SR_TXE) == 0);
-    } else {
+    if(!(USART_SR(USART2) & USART_SR_TXE)) {
         while(coroutine_waiting_for_usart2_interrupt) yield_delay(1e-6);
         coroutine_waiting_for_usart2_interrupt = current_coroutine;
         
@@ -47,10 +45,8 @@ static void my_usart_send_blocking(uint8_t x) {
         cm_enable_interrupts();
         
         yield();
-        
-        while ((USART_SR(USART2) & USART_SR_TXE) == 0);
-        assert(USART_SR(USART2) & USART_SR_TXE);
     }
+    assert(USART_SR(USART2) & USART_SR_TXE);
     USART_DR(USART2) = (x & USART_DR_MASK);
 }
 
