@@ -53,4 +53,4 @@ RAM_SIZE = 20*1024
 cum_size = 0
 for size, name, name2 in ram_data:
     cum_size += size
-    print '%.3f %.03f' % (size/RAM_SIZE, cum_size/RAM_SIZE), ' '.join(name).ljust(30), ' '.join(name2)
+    print '%.3f %.03f' % (size/RAM_SIZE, cum_size/RAM_SIZE), size, ' '.join(name).ljust(30), ' '.join(name2)

@@ -139,10 +139,10 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
         my_spi_xfer(data_crc >> 8); // CRC
         my_spi_xfer(data_crc & 0xFF);
         uint8_t data_resp = my_spi_xfer(0xFF);
-        //printf("data_resp: %i\n", data_resp);
+        //my_printf("data_resp: %i\n", data_resp);
         assert((data_resp & 0b11111) == 0b00101);
         while(my_spi_xfer(0xFF) != 0xFF);
-        //printf("done\n");
+        //my_printf("done\n");
     }
     my_spi_xfer(0xFF);
     gpio_set(GPIOA, GPIO15);
@@ -159,7 +159,7 @@ static uint64_t next_sync_time;
 static bool opened = false;
 
 void sdcard_init() {
-    printf("hello world from sdcard!\n");
+    my_printf("hello world from sdcard!\n");
     
     gpio_primary_remap(AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_ON, AFIO_MAPR_SPI1_REMAP);
     
@@ -217,7 +217,7 @@ void sdcard_init() {
     
     uint32_t CMD58_aux; assert(CMD(58, 0, CMDFormat::R3, &CMD58_aux) == 0); // read ocr
     
-    printf("CMD58_aux: %lu\n", CMD58_aux);
+    my_printf("CMD58_aux: %lu\n", CMD58_aux);
     
     if(CMD58_aux & (1<<30)) {
         byte_addresses = false;
@@ -227,7 +227,7 @@ void sdcard_init() {
         assert(CMD(16, 0x200) == 0); // set block size to 512 bytes
     }
     
-    printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
+    my_printf("byte_addresses: %s\n", byte_addresses ? "true" : "false");
     assert(!byte_addresses); // XXX
     
     //uint8_t write_data[512] = "hello world!\n";
@@ -236,17 +236,17 @@ void sdcard_init() {
     /*for(uint32_t i = 0; ; i++) {
         uint8_t read_data[512];
         assert(CMD(17, i, CMDFormat::R1, nullptr, CMDData::READ, sizeof(read_data), read_data) == 0);
-        printf("%i\n", i);
+        my_printf("%i\n", i);
     }*/
     
     assert(f_mount(&fs, "", 1) == FR_OK);
     
-    printf("done\n");
+    my_printf("done\n");
 }
 
 void sdcard_open(char const * filename) {
     FRESULT x = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
-    printf("f_open result: %i\n", x);
+    my_printf("f_open result: %i\n", x);
     assert(x == FR_OK);
     next_sync_time = 0;
     opened = true;
@@ -275,7 +275,7 @@ void sdcard_poll() {
 void sdcard_log(uint32_t length, uint8_t const * data) {
     if(sdcard_buf.write_available() < length) {
         // drop
-        printf("sdcard_log dropped something\n");
+        my_printf("sdcard_log dropped something\n");
     } else {
         while(length--) {
             assert(sdcard_buf.write_one(*data++));
@@ -292,7 +292,7 @@ DRESULT disk_write (
 {
     assert(pdrv == 0);
     
-    printf("writing to %u sectors starting at %lu\n", count, sector);
+    my_printf("writing to %u sectors starting at %lu\n", count, sector);
     
     while(count--) {
         assert(CMD(24, sector, CMDFormat::R1, nullptr, CMDData::WRITE, 512, const_cast<BYTE*>(buff)) == 0);
@@ -314,7 +314,7 @@ DRESULT disk_read (
 {
     assert(pdrv == 0);
     
-    printf("reading from %u sectors starting at %lu\n", count, sector);
+    my_printf("reading from %u sectors starting at %lu\n", count, sector);
     
     while(count--) {
         assert(CMD(17, sector, CMDFormat::R1, nullptr, CMDData::READ, 512, buff) == 0);
@@ -363,7 +363,7 @@ DRESULT disk_ioctl (
     } else if(cmd == GET_BLOCK_SIZE) {
         assert(false);
     } else {
-        printf("disk_ioctl got invalid cmd %i\n", cmd);
+        my_printf("disk_ioctl got invalid cmd %i\n", cmd);
         return RES_PARERR;
     }
 }

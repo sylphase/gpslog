@@ -71,7 +71,7 @@ static void baro_main() {
         uint8_t buf[2];
         send_command(0xA0 + 2 * i, 2, buf); // PROM Read
         prom[i] = (buf[0] << 8) | buf[1];
-        printf("prom[%i] = %i\n", i, prom[i]);
+        my_printf("prom[%i] = %i\n", i, prom[i]);
     }
     while(true) {
         send_command(0x48); // Convert D1 (OSR=4096)
@@ -86,7 +86,7 @@ static void baro_main() {
             (D2[0] << 16) | (D2[1] << 8) | D2[2],
         res);
         
-        printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+        my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
     }
 }
 

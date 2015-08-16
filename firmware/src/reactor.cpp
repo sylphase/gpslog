@@ -58,3 +58,5 @@ void reactor_run() {
         }
     }
 }
+
+Lock stdlib_lock;

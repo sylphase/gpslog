@@ -74,7 +74,7 @@ auto main_function = []() {
     busy_delay(0.0001); // wait for battery voltage to dip
     {
         float vdd = measure_vdd();
-        printf("vdd: %f\n", vdd);
+        my_printf("vdd: %f\n", vdd);
         if(hardware_get_battery_dead(vdd)) {
             poweroff();
         }
@@ -86,14 +86,14 @@ auto main_function = []() {
     
     sdcard_init();
     
-    printf("sdcard mounted, starting gps\n");
+    my_printf("sdcard mounted, starting gps\n");
     
     gps_setup();
     
-    printf("init done, hello world!\n");
-    printf("waiting for date from gps...\n");
+    my_printf("init done, hello world!\n");
+    my_printf("waiting for date from gps...\n");
     while(!got_filename) yield_delay(0.1);
-    printf("got date filename: %s! opening\n", filename);
+    my_printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
     
     uint8_t const msg[] = "start of log\r\n";
