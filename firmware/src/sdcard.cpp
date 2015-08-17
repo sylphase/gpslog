@@ -284,10 +284,10 @@ void sdcard_log(uint32_t length, uint8_t const * data) {
 }
 
 DRESULT disk_write (
-	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
-	const BYTE *buff,	/* Data to be written */
-	DWORD sector,		/* Sector address in LBA */
-	UINT count			/* Number of sectors to write */
+    BYTE pdrv,            /* Physical drive nmuber to identify the drive */
+    const BYTE *buff,    /* Data to be written */
+    DWORD sector,        /* Sector address in LBA */
+    UINT count            /* Number of sectors to write */
 )
 {
     assert(pdrv == 0);
@@ -300,16 +300,16 @@ DRESULT disk_write (
         buff += 512;
     }
     
-	return RES_OK;
+    return RES_OK;
 }
 
 static DSTATUS status = STA_NOINIT;
 
 DRESULT disk_read (
-	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
-	BYTE *buff,		/* Data buffer to store read data */
-	DWORD sector,	/* Sector address in LBA */
-	UINT count		/* Number of sectors to read */
+    BYTE pdrv,        /* Physical drive nmuber to identify the drive */
+    BYTE *buff,        /* Data buffer to store read data */
+    DWORD sector,    /* Sector address in LBA */
+    UINT count        /* Number of sectors to read */
 )
 {
     assert(pdrv == 0);
@@ -322,11 +322,11 @@ DRESULT disk_read (
         buff += 512;
     }
     
-	return RES_OK;
+    return RES_OK;
 }
 
 DSTATUS disk_status (
-	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+    BYTE pdrv                /* Physical drive nmuber to identify the drive */
 )
 {
     assert(pdrv == 0);
@@ -335,7 +335,7 @@ DSTATUS disk_status (
 }
 
 DSTATUS disk_initialize (
-	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+    BYTE pdrv                /* Physical drive nmuber to identify the drive */
 )
 {
     assert(pdrv == 0);
@@ -347,9 +347,9 @@ DSTATUS disk_initialize (
 
 #if _USE_IOCTL
 DRESULT disk_ioctl (
-	BYTE pdrv,		/* Physical drive nmuber (0..) */
-	BYTE cmd,		/* Control code */
-	void *buff		/* Buffer to send/receive control data */
+    BYTE pdrv,        /* Physical drive nmuber (0..) */
+    BYTE cmd,        /* Control code */
+    void *buff        /* Buffer to send/receive control data */
 )
 {
     assert(pdrv == 0);
