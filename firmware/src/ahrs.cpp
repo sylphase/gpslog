@@ -127,13 +127,13 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 		I2C_SR2(I2C2); // clear ADDR
 		
 		while(length > 3) {
-			yield_interrupt();
+			yield_interrupt(true);
 			assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 			*data++ = I2C_DR(I2C2);
 			length--;
 		}
 		
-		yield_interrupt();
+		yield_interrupt(true);
 		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		
 		yield_interrupt();
@@ -142,6 +142,7 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 		*data++ = I2C_DR(I2C2);
 		I2C_CR1(I2C2) |= I2C_CR1_STOP;
 		*data++ = I2C_DR(I2C2);
+		yield_interrupt(true);
 		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		*data++ = I2C_DR(I2C2);
 	} else if(length == 2) {
@@ -186,7 +187,7 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 
 		I2C_CR1(I2C2) |= I2C_CR1_STOP;
 		
-		yield_interrupt();
+		yield_interrupt(true);
 		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		
 		*data++ = I2C_DR(I2C2);
