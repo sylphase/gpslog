@@ -18,6 +18,7 @@
 #include "coroutine.h"
 #include "baro.h"
 #include "reactor.h"
+#include "ahrs.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -81,6 +82,10 @@ auto main_function = []() {
     }
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
+    
+    ahrs_init();
+    
+    while(true) yield_delay(1);
     
     baro_init();
     

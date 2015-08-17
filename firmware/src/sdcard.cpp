@@ -153,7 +153,7 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
 static bool byte_addresses;
 static FATFS fs;
 static FIL file;
-CircularBuffer<uint8_t, 4096> sdcard_buf;
+CircularBuffer<uint8_t, 2048> sdcard_buf;
 static uint32_t const SYNC_PERIOD = 10;
 static uint64_t next_sync_time;
 static bool opened = false;
@@ -175,7 +175,7 @@ void sdcard_init() {
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO5);
     
     spi_reset(SPI1);
-    assert(rcc_apb1_frequency / 256 >= 100e3 && rcc_apb1_frequency / 256 <= 400e3);
+    assert(rcc_apb2_frequency / 256 >= 100e3 && rcc_apb2_frequency / 256 <= 400e3);
     spi_init_master(SPI1, SPI_CR1_BAUDRATE_FPCLK_DIV_256, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
         SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
     
@@ -212,7 +212,7 @@ void sdcard_init() {
     uint8_t csd_bytes[16];
     assert(CMD(9, 0, CMDFormat::R1, nullptr, CMDData::READ, sizeof(csd_bytes), csd_bytes) == 0);
     
-    assert(rcc_apb1_frequency / 4 <= 25e6);
+    assert(rcc_apb2_frequency / 4 <= 25e6);
     spi_set_baudrate_prescaler(SPI1, 1);
     
     uint32_t CMD58_aux; assert(CMD(58, 0, CMDFormat::R3, &CMD58_aux) == 0); // read ocr
