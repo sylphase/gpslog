@@ -11,6 +11,32 @@
 #include "time.h"
 #include "reactor.h"
 
+
+static CoroutineBase *coroutine_waiting_for_i2c2_interrupt = nullptr;
+static void got_interrupt(void *, uint32_t) {
+    assert(coroutine_waiting_for_i2c2_interrupt);
+    CoroutineBase *x = coroutine_waiting_for_i2c2_interrupt;
+    coroutine_waiting_for_i2c2_interrupt = nullptr;
+    assert(!x->run_some());
+}
+extern "C" {
+void i2c2_ev_isr(void) {
+    i2c_disable_interrupt(I2C2, I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
+    assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+}
+void i2c2_er_isr(void) {
+    i2c_disable_interrupt(I2C2, I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
+    assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+}
+}
+static void yield_interrupt(bool buffer=false) {
+    assert(!coroutine_waiting_for_i2c2_interrupt);
+    coroutine_waiting_for_i2c2_interrupt = current_coroutine;
+    i2c_enable_interrupt(I2C2, (buffer ? I2C_CR2_ITBUFEN : 0) | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
+    yield();
+}
+
+
 /*
 PB2=ahrs_int,
 PB10=ahrs_i2c.SCL, # I2C2_SCL
@@ -24,23 +50,27 @@ void i2c_write(uint8_t device_address, uint8_t register_address, uint8_t data) {
 	i2c_send_start(I2C2);
 
 	/* Waiting for START is send and switched to master mode. */
-	while (!((I2C_SR1(I2C2) & I2C_SR1_SB)
-		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY))));
+	yield_interrupt();
+	assert((I2C_SR1(I2C2) & I2C_SR1_SB)
+		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY)));
 
 	/* Send destination address. */
 	i2c_send_7bit_address(I2C2, device_address, I2C_WRITE);
 
 	/* Waiting for address to be transferred. */
-	while (!(I2C_SR1(I2C2) & I2C_SR1_ADDR));
+	yield_interrupt();
+	assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
 	/* Clearing ADDR condition sequence. */
 	I2C_SR2(I2C2);
 
 	/* Sending the data. */
 	i2c_send_data(I2C2, register_address);
-	while (!(I2C_SR1(I2C2) & I2C_SR1_BTF)); /* Await ByteTransferedFlag. */
+	yield_interrupt();
+	assert(I2C_SR1(I2C2) & I2C_SR1_BTF); /* Await ByteTransferedFlag. */
 	i2c_send_data(I2C2, data);
-	while (!(I2C_SR1(I2C2) & (I2C_SR1_BTF | I2C_SR1_TxE)));
+	yield_interrupt();
+	assert(I2C_SR1(I2C2) & (I2C_SR1_BTF | I2C_SR1_TxE));
 
 	/* Send STOP condition. */
 	i2c_send_stop(I2C2);
@@ -51,21 +81,25 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 	i2c_send_start(I2C2);
 
 	/* Waiting for START is send and switched to master mode. */
-	while (!((I2C_SR1(I2C2) & I2C_SR1_SB)
-		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY))));
+	yield_interrupt();
+	assert((I2C_SR1(I2C2) & I2C_SR1_SB)
+		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY)));
 
 	/* Say to what address we want to talk to. */
 	/* Yes, WRITE is correct - for selecting register in STTS75. */
 	i2c_send_7bit_address(I2C2, device_address, I2C_WRITE);
 
 	/* Waiting for address to be transferred. */
-	while (!(I2C_SR1(I2C2) & I2C_SR1_ADDR));
+	yield_interrupt();
+	assert(!(I2C_SR1(I2C2) & I2C_SR1_AF));
+	assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
 	/* Clearing ADDR condition sequence. */
 	I2C_SR2(I2C2);
 
 	i2c_send_data(I2C2, register_address);
-	while (!(I2C_SR1(I2C2) & (I2C_SR1_BTF | I2C_SR1_TxE)));
+	yield_interrupt();
+	assert(I2C_SR1(I2C2) & (I2C_SR1_BTF | I2C_SR1_TxE));
 
 	/*
 	 * Now we transferred that we want to ACCESS the temperature register.
@@ -77,40 +111,46 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 	i2c_send_start(I2C2);
 
 	/* Waiting for START is send and switched to master mode. */
-	while (!((I2C_SR1(I2C2) & I2C_SR1_SB)
-		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY))));
+	yield_interrupt();
+	assert((I2C_SR1(I2C2) & I2C_SR1_SB)
+		& (I2C_SR2(I2C2) & (I2C_SR2_MSL | I2C_SR2_BUSY)));
 
 	/* Say to what address we want to talk to. */
 	i2c_send_7bit_address(I2C2, device_address, I2C_READ); 
 	
 	if(length >= 3) {
-		while (!(I2C_SR1(I2C2) & I2C_SR1_ADDR));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 		
 		I2C_CR1(I2C2) |= I2C_CR1_ACK;
 		
-		I2C_SR2(I2C2);
+		I2C_SR2(I2C2); // clear ADDR
 		
 		while(length > 3) {
-			while (!(I2C_SR1(I2C2) & I2C_SR1_RxNE));
+			yield_interrupt();
+			assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 			*data++ = I2C_DR(I2C2);
 			length--;
 		}
 		
-		while (!(I2C_SR1(I2C2) & I2C_SR1_RxNE));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		
-		while (!(I2C_SR1(I2C2) & I2C_SR1_BTF));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_BTF);
 		I2C_CR1(I2C2) &= ~I2C_CR1_ACK;
 		*data++ = I2C_DR(I2C2);
 		I2C_CR1(I2C2) |= I2C_CR1_STOP;
 		*data++ = I2C_DR(I2C2);
-		while (!(I2C_SR1(I2C2) & I2C_SR1_RxNE));
+		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		*data++ = I2C_DR(I2C2);
 	} else if(length == 2) {
 		/* 2-byte receive is a special case. See datasheet POS bit. */
 		I2C_CR1(I2C2) |= (I2C_CR1_POS | I2C_CR1_ACK);
 
 		/* Waiting for address to be transferred. */
-		while (!(I2C_SR1(I2C2) & I2C_SR1_ADDR));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
 		/* Clearing ADDR condition sequence. */
 		I2C_SR2(I2C2);
@@ -119,7 +159,8 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 		I2C_CR1(I2C2) &= ~I2C_CR1_ACK;
 
 		/* Now the slave should begin to send us the first byte. Await BTF. */
-		while (!(I2C_SR1(I2C2) & I2C_SR1_BTF));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_BTF);
 		*data++ = I2C_DR(I2C2);
 
 		/*
@@ -134,7 +175,8 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 		I2C_CR1(I2C2) &= ~I2C_CR1_POS;
 	} else if(length == 1) {
 		/* Waiting for address to be transferred. */
-		while (!(I2C_SR1(I2C2) & I2C_SR1_ADDR));
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
 		/* Clearing I2C_SR1_ACK. */
 		I2C_CR1(I2C2) &= ~I2C_CR1_ACK;
@@ -143,8 +185,9 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 		I2C_SR2(I2C2);
 
 		I2C_CR1(I2C2) |= I2C_CR1_STOP;
-
-		while (!(I2C_SR1(I2C2) & I2C_SR1_RxNE));
+		
+		yield_interrupt();
+		assert(I2C_SR1(I2C2) & I2C_SR1_RxNE);
 		
 		*data++ = I2C_DR(I2C2);
 	} else { // length == 0
@@ -153,6 +196,9 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 }
 
 static void ahrs_main() {
+	yield_delay(1);
+	printf("ahrs starting\n");
+	
 	/* Enable clocks for I2C2 and AFIO. */
 	rcc_periph_reset_pulse(RST_I2C2);
 	rcc_periph_clock_enable(RCC_I2C2);
@@ -188,6 +234,9 @@ static void ahrs_main() {
 
 	/* If everything is configured -> enable the peripheral. */
 	i2c_peripheral_enable(I2C2);
+	
+    nvic_enable_irq(NVIC_I2C2_EV_IRQ);
+    nvic_enable_irq(NVIC_I2C2_ER_IRQ);
     
     for(unsigned int j = 1; j < 10; j++) {
     	uint8_t buf[16];
