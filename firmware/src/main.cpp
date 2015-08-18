@@ -19,6 +19,8 @@
 #include "baro.h"
 #include "reactor.h"
 #include "ahrs.h"
+#include "misc.h"
+#include "scheduler.h"
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -82,6 +84,11 @@ auto main_function = []() {
     }
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
+    
+    while(true) {
+        my_printf("time is %f\n", static_cast<double>(time_get_ticks()) / time_get_ticks_per_second());
+        busy_delay(0.0001);
+    }
     
     ahrs_init();
     

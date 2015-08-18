@@ -10,6 +10,8 @@
 #include "coroutine.h"
 #include "time.h"
 #include "reactor.h"
+#include "scheduler.h"
+#include "misc.h"
 
 /*
         PB12=baro_spi_nCS, # SPI2_NSS

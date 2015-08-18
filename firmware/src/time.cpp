@@ -3,7 +3,7 @@
 
 #include "time.h"
 
-static uint64_t rollovers;
+static volatile uint64_t rollovers;
 
 void time_init() {
   cm_disable_interrupts();

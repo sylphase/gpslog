@@ -10,6 +10,8 @@
 #include "coroutine.h"
 #include "time.h"
 #include "reactor.h"
+#include "scheduler.h"
+#include "misc.h"
 
 
 static CoroutineBase *coroutine_waiting_for_i2c2_interrupt = nullptr;

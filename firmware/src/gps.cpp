@@ -18,6 +18,7 @@
 #include "main.h"
 #include "reactor.h"
 #include "coroutine.h"
+#include "scheduler.h"
 
 static uint8_t const DLE = 0x10;
 static uint8_t const ETX = 0x03;

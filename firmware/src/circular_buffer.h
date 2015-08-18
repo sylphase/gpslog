@@ -29,6 +29,9 @@ public:
         return (read_pos_ - write_pos_ + 3*Length) % (2*Length);
     }
     
+    bool read_available() const {
+        return read_pos_ != write_pos_;
+    }
     bool read_one(Type & x) {
         if(read_pos_ != write_pos_) {
             x = buf_[read_pos_ % Length];

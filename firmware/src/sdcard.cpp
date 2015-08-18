@@ -13,6 +13,8 @@
 #include "ff/diskio.h"
 #include "coroutine.h"
 #include "reactor.h"
+#include "scheduler.h"
+#include "misc.h"
 
 /*
         PA15=sd_spi_nCS, # SPI1_NSS
