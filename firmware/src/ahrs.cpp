@@ -57,6 +57,7 @@ void i2c_write(uint8_t device_address, uint8_t register_address, uint8_t data) {
 
     /* Waiting for address to be transferred. */
     yield_interrupt();
+    assert(!(I2C_SR1(I2C2) & I2C_SR1_AF));
     assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
     /* Clearing ADDR condition sequence. */
@@ -123,6 +124,7 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
     
     if(length >= 3) {
         yield_interrupt();
+        assert(!(I2C_SR1(I2C2) & I2C_SR1_AF));
         assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
         
         I2C_CR1(I2C2) |= I2C_CR1_ACK;
@@ -154,6 +156,7 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
 
         /* Waiting for address to be transferred. */
         yield_interrupt();
+        assert(!(I2C_SR1(I2C2) & I2C_SR1_AF));
         assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
         /* Clearing ADDR condition sequence. */
@@ -180,6 +183,7 @@ void i2c_read(uint8_t device_address, uint8_t register_address, uint8_t * data, 
     } else if(length == 1) {
         /* Waiting for address to be transferred. */
         yield_interrupt();
+        assert(!(I2C_SR1(I2C2) & I2C_SR1_AF));
         assert(I2C_SR1(I2C2) & I2C_SR1_ADDR);
 
         /* Clearing I2C_SR1_ACK. */
