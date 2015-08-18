@@ -75,14 +75,38 @@ void gps_start_logging() {
     logging_enabled = true;
 }
 
-static uint8_t packet[1024];
-static uint16_t packet_pos;
+bool gps_write_packet(uint8_t const * data, uint32_t length) {
+    uint32_t bytes_required = length;
+    for(uint32_t i = 1; i < length; i++) {
+        if(data[i] == DLE) bytes_required++;
+    }
+    
+    if(sdcard_buf.write_available() >= 2*length) {
+        assert(sdcard_buf.write_one(DLE));
+        assert(sdcard_buf.write_one(data[0]));
+        for(uint16_t i = 1; i < length; i++) {
+            if(data[i] == DLE) {
+                assert(sdcard_buf.write_one(DLE));
+                assert(sdcard_buf.write_one(DLE));
+            } else {
+                assert(sdcard_buf.write_one(data[i]));
+            }
+        }
+        assert(sdcard_buf.write_one(DLE));
+        assert(sdcard_buf.write_one(ETX));
+        
+        return true;
+    } else {
+        return false;
+    }
+}
 
-static bool called_got_date_string = false;
-
-volatile static uint8_t current_byte;
-
-void parse_coroutine_function() {
+static uint8_t current_byte;
+static void parse_coroutine_function() {
+    uint8_t packet[1024];
+    uint16_t packet_pos;
+    bool called_got_date_string = false;
+    
     // this coroutine doesn't currently use the reactor, so printf/any other yielding functions aren't allowed
     while(true) {
 start:
@@ -126,20 +150,7 @@ start:
         //fprintf(stderr, "gps: success %i %i\n", packet[0], packet_pos);
         
         if(logging_enabled) {
-            if(sdcard_buf.write_available() >= 2*packet_pos) { // drop otherwise
-                assert(sdcard_buf.write_one(DLE));
-                assert(sdcard_buf.write_one(packet[0]));
-                for(uint16_t i = 1; i < packet_pos; i++) {
-                    if(packet[i] == DLE) {
-                        assert(sdcard_buf.write_one(DLE));
-                        assert(sdcard_buf.write_one(DLE));
-                    } else {
-                        assert(sdcard_buf.write_one(packet[i]));
-                    }
-                }
-                assert(sdcard_buf.write_one(DLE));
-                assert(sdcard_buf.write_one(ETX));
-            }
+            gps_write_packet(packet, packet_pos); // silently drop if buffer is full
         }
         
         if(packet[0] == 0xF5 && !called_got_date_string) {
@@ -158,7 +169,7 @@ start:
         }
     }
 }
-static Coroutine<1024> parse_coroutine(parse_coroutine_function);
+static Coroutine<2048> parse_coroutine(parse_coroutine_function);
 
 static void got_byte(void *, uint32_t data2) {
     current_byte = data2;
