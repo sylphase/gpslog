@@ -85,9 +85,9 @@ auto main_function = []() {
     
     ahrs_init();
     
-    while(true) yield_delay(1);
-    
     baro_init();
+    
+    while(true) yield_delay(1);
     
     sdcard_init();
     
@@ -100,9 +100,6 @@ auto main_function = []() {
     while(!got_filename) yield_delay(0.1);
     my_printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
-    
-    uint8_t const msg[] = "start of log\r\n";
-    sdcard_log(sizeof(msg), msg);
     
     gps_start_logging();
     

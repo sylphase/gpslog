@@ -145,7 +145,7 @@ def main():
     U3 = yield BNO055.BNO055('U3',
         GND=gnd,
         VDD=vcc3_3,
-        nBOOT_LOAD_PIN=vcc3_3,
+        nBOOT_LOAD_PIN=vcc3_3, # XXX supposed to have 10k pullup?
         PS1=gnd,
         PS0=gnd,
         PIN10=gnd,
