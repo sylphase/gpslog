@@ -56,31 +56,37 @@ static TimeCallbackElement time_callbacks[TIME_CALLBACKS_MAX_LENGTH];
 static uint32_t time_callbacks_length = 0;
 
 
-static void scheduler_tick() {
+static void scheduler_tick(bool run_things) {
     uint64_t time = time_get_ticks();
     
-    while(time_callbacks_length && time >= time_callbacks[0].first) {
-        time_callbacks[0].second->run();
-        std::pop_heap(time_callbacks, time_callbacks+time_callbacks_length,
-            [](TimeCallbackElement const & a, TimeCallbackElement const & b) {
-                return a.first > b.first;
-            });
-        time_callbacks_length--;
-        
-        time = time_get_ticks();
+    //fprintf(stderr, "scheduler_tick called at %f\n", static_cast<double>(time) / time_get_ticks_per_second());
+    
+    if(run_things) {
+        while(time_callbacks_length && time >= time_callbacks[0].first) {
+            RunnerBase * x = time_callbacks[0].second;
+            std::pop_heap(time_callbacks, time_callbacks+time_callbacks_length,
+                [](TimeCallbackElement const & a, TimeCallbackElement const & b) {
+                    return a.first > b.first;
+                });
+            time_callbacks_length--;
+            
+            x->run();
+            
+            time = time_get_ticks();
+        }
     }
     
     { CriticalSection cs;
         if(timer_running) stop_timer();
         
         if(time_callbacks_length) {
-            set_timer(time_callbacks[0].first - time);
+            set_timer(std::max(time+1, time_callbacks[0].first) - time);
         }
     }
 }
 
 static void got_interrupt(void *, uint32_t) {
-    scheduler_tick();
+    scheduler_tick(true);
 }
 
 extern "C" {
@@ -127,7 +133,7 @@ void call_at(uint64_t tick, RunnerBase & call) {
             return a.first > b.first;
         });
     
-    scheduler_tick();
+    scheduler_tick(false);
 }
 
 

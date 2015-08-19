@@ -87,6 +87,7 @@ public:
         Runner<Function> runner(func);
         to_run = &runner;
         
+        assert(current_coroutine != this);
         CoroutineBase * old_current_coroutine = current_coroutine;
         
         assert(!started_);
@@ -108,6 +109,7 @@ public:
         }
     }
     bool run_some() {
+        assert(current_coroutine != this);
         CoroutineBase * old_current_coroutine = current_coroutine;
         
         assert(started_);
