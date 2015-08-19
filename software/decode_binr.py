@@ -59,6 +59,10 @@ def handle_packet(id_, payload):
             h = (1 - pow(pressure / p0, R*L/g/M))/L*T_0
             
             print temperature, pressure, h
+        else:
+            assert False
+    else:
+        pass # ignore all standard BINR messages
 
 def parser():
     while True:

@@ -1,17 +1,20 @@
 #include <cstdio>
 #include <cassert>
+#include <cstring>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/i2c.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
 
-#include "ahrs.h"
 #include "coroutine.h"
 #include "time.h"
 #include "reactor.h"
 #include "scheduler.h"
 #include "misc.h"
+#include "gps.h"
+
+#include "ahrs.h"
 
 
 static CoroutineBase *coroutine_waiting_for_i2c2_interrupt = nullptr;
@@ -224,12 +227,12 @@ enum class Register : uint8_t {
     SW_REV_ID_MSB = 0x05,
     BL_REV_ID = 0X06,
     /* Accel data register */
-    ACCEL_DATA_X_LSB = 0X08,
-    ACCEL_DATA_X_MSB = 0X09,
-    ACCEL_DATA_Y_LSB = 0X0A,
-    ACCEL_DATA_Y_MSB = 0X0B,
-    ACCEL_DATA_Z_LSB = 0X0C,
-    ACCEL_DATA_Z_MSB = 0X0D,
+    ACC_DATA_X_LSB = 0X08,
+    ACC_DATA_X_MSB = 0X09,
+    ACC_DATA_Y_LSB = 0X0A,
+    ACC_DATA_Y_MSB = 0X0B,
+    ACC_DATA_Z_LSB = 0X0C,
+    ACC_DATA_Z_MSB = 0X0D,
     /* Mag data register */
     MAG_DATA_X_LSB = 0X0E,
     MAG_DATA_X_MSB = 0X0F,
@@ -439,13 +442,13 @@ static void ahrs_main() {
     my_printf("ahrs initialized\n");
     
     while(true) {
-        uint8_t quatdata[8];
-        i2c_read(ADDRESS, static_cast<uint8_t>(Register::QUATERNION_DATA_W_LSB), quatdata, sizeof(quatdata));
-        int16_t quat[4];
-        for(unsigned int i = 0; i < 4; i++) {
-            quat[i] = quatdata[2*i] | (static_cast<uint16_t>(quatdata[2*i+1]) << 8);
-        }
-        //my_printf("quat: %i %i %i %i\n", quat[0], quat[1], quat[2], quat[3]);
+        uint8_t constexpr start = static_cast<uint8_t>(Register::ACC_DATA_X_LSB);
+        uint8_t constexpr end = static_cast<uint8_t>(Register::CALIB_STAT);
+        uint8_t buf[2+(end-start)];
+        buf[0] = 0; // custom message type
+        buf[1] = 3; // ahrs measurement
+        i2c_read(ADDRESS, start, buf+2, end-start);
+        gps_write_packet(buf, sizeof(buf)); // might drop
     }
 }
 
