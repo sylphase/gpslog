@@ -68,7 +68,7 @@ void poweroff() {
 
 static uint16_t const timer_period = 7200; // 10 kHz PWM - 1 kHz was occasionally visible
 
-void set_led_color(double red, double green, double blue) {
+void set_led_color(float red, float green, float blue) {
     red *= 0.6; // compensate for red LED being brighter
     
     double sum = red + green + blue;
@@ -83,6 +83,18 @@ void set_led_color(double red, double green, double blue) {
     timer_set_oc_value(TIM3, TIM_OC1, red*timer_period+.5);
     timer_set_oc_value(TIM3, TIM_OC2, (red+green)*timer_period+.5);
     timer_set_oc_value(TIM3, TIM_OC3, (1-blue)*timer_period+.5);
+}
+
+void set_led_override_off(bool override_off) {
+    if(override_off) {
+        gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO6);
+        gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO7);
+        gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO0);
+    } else {
+        gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO6);
+        gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO7);
+        gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO0);
+    }
 }
 
 void hardware_init() {
@@ -121,7 +133,8 @@ void hardware_init() {
     TIM3_EGR |= TIM_EGR_UG;
     timer_enable_counter(TIM3);
     
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO6);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO7);
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO0);
+    gpio_set(GPIOA, GPIO6);
+    gpio_set(GPIOA, GPIO7);
+    gpio_set(GPIOB, GPIO0);
+    set_led_override_off(false);
 }

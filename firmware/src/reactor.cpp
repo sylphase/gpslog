@@ -1,6 +1,7 @@
 #include <libopencmsis/core_cm3.h>
 
 #include "misc.h"
+#include "hardware.h"
 
 #include "reactor.h"
 
@@ -14,7 +15,9 @@ void reactor_run() {
         }
         
         { CriticalSection cs;
+            set_led_override_off(true);
             if(!main_callbacks.read_available()) __WFI();
+            set_led_override_off(false);
         }
     }
 }
