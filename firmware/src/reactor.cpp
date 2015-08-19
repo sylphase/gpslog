@@ -1,5 +1,7 @@
 #include <libopencmsis/core_cm3.h>
 
+#include "misc.h"
+
 #include "reactor.h"
 
 CircularBuffer<CallbackRecord, 128> main_callbacks;
@@ -11,8 +13,8 @@ void reactor_run() {
             main_callbacks.read_skip(1);
         }
         
-        cm_disable_interrupts();
-        if(!main_callbacks.read_available()) __WFI();
-        cm_enable_interrupts();
+        { CriticalSection cs;
+            if(!main_callbacks.read_available()) __WFI();
+        }
     }
 }

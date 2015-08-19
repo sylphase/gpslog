@@ -4,6 +4,8 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/cm3/cortex.h>
 
+#include "misc.h"
+
 #include "hardware.h"
 
 static void adc_setup(void) {
@@ -58,9 +60,10 @@ bool hardware_get_battery_really_dead(float vdd) {
 }
 
 void poweroff() {
-    cm_disable_interrupts(); // don't do anything else
-    gpio_set(GPIOB, GPIO1);
-    while(true) { }
+    { CriticalSection cs; // don't do anything else
+        gpio_set(GPIOB, GPIO1);
+        while(true) { }
+    }
 }
 
 static uint16_t const timer_period = 7200; // 10 kHz PWM - 1 kHz was occasionally visible

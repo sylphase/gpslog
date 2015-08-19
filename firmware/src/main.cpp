@@ -68,11 +68,13 @@ void got_date_string(char const *str) {
 static Coroutine<2048> main_coroutine;
     
 auto main_function = []() {
+    time_init();
     hardware_init();
     
     set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
     
     serial_setup();
+    scheduler_init();
     
     busy_delay(0.0001); // wait for battery voltage to dip
     {
@@ -85,16 +87,9 @@ auto main_function = []() {
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
-    while(true) {
-        my_printf("time is %f\n", static_cast<double>(time_get_ticks()) / time_get_ticks_per_second());
-        busy_delay(0.0001);
-    }
-    
     ahrs_init();
     
     baro_init();
-    
-    while(true) yield_delay(1);
     
     sdcard_init();
     
@@ -128,7 +123,6 @@ auto main_function = []() {
 
 int main(void) {
     clock_setup();
-    time_init();
     main_coroutine.start(main_function);
     reactor_run();
 }
