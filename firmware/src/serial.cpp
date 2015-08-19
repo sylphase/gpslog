@@ -13,15 +13,7 @@
 #include "coroutine.h"
 #include "reactor.h"
 
-static CoroutineBase *coroutine_waiting_for_usart2_interrupt = nullptr;
-
-static void got_interrupt() {
-    assert(coroutine_waiting_for_usart2_interrupt);
-    CoroutineBase *x = coroutine_waiting_for_usart2_interrupt;
-    coroutine_waiting_for_usart2_interrupt = nullptr;
-    assert(!x->run_some());
-}
-static Runner<decltype(got_interrupt)> got_interrupt_runner(got_interrupt);
+static RunnerBase const *usart2_interrupt_callback = nullptr;
 
 extern "C" {
 
@@ -31,15 +23,23 @@ void usart2_isr(void) {
     
     usart_disable_tx_interrupt(USART2);
     
-    reactor_run_in_main(got_interrupt_runner);
+    assert(usart2_interrupt_callback);
+    RunnerBase const *x = usart2_interrupt_callback;
+    usart2_interrupt_callback = nullptr;
+    reactor_run_in_main(*x);
 }
 
 }
 
 static void my_usart_send_blocking(uint8_t x) {
     if(!(USART_SR(USART2) & USART_SR_TXE)) {
-        assert(!coroutine_waiting_for_usart2_interrupt);
-        coroutine_waiting_for_usart2_interrupt = current_coroutine;
+        CoroutineBase * cc = current_coroutine;
+        assert(cc);
+        auto f = [&]() {
+            assert(!cc->run_some());
+        };
+        Runner<decltype(f)> r(f);
+        usart2_interrupt_callback = &r;
         
         usart_enable_tx_interrupt(USART2);
         
