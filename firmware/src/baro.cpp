@@ -1,17 +1,19 @@
 #include <cstdio>
 #include <cassert>
+#include <cstring>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
 
-#include "baro.h"
 #include "coroutine.h"
-#include "time.h"
 #include "reactor.h"
 #include "scheduler.h"
 #include "misc.h"
+#include "gps.h"
+
+#include "baro.h"
 
 /*
         PB12=baro_spi_nCS, # SPI2_NSS
@@ -75,6 +77,19 @@ static void baro_main() {
         prom[i] = (buf[0] << 8) | buf[1];
         my_printf("prom[%i] = %i\n", i, prom[i]);
     }
+    {
+        uint8_t buf[2+8*2];
+        buf[0] = 0; // custom message type
+        buf[1] = 1; // barometer prom
+        for(int i = 0; i < 8; i++) {
+            buf[2+2*i+0] = prom[i] >> 8;
+            buf[2+2*i+1] = prom[i] & 255;
+        }
+        while(!gps_write_packet(buf, sizeof(buf))) {
+            // make sure this is logged
+            yield_delay(0.1);
+        }
+    }
     while(true) {
         send_command(0x48); // Convert D1 (OSR=4096)
         yield_delay(9.04e-3);
@@ -83,12 +98,21 @@ static void baro_main() {
         yield_delay(9.04e-3);
         uint8_t D2[3]; send_command(0x00, 3, D2); // ADC Read
         
-        Result res; decode(prom,
-            (D1[0] << 16) | (D1[1] << 8) | D1[2],
-            (D2[0] << 16) | (D2[1] << 8) | D2[2],
-        res);
+        if(false) {
+            Result res; decode(prom,
+                (D1[0] << 16) | (D1[1] << 8) | D1[2],
+                (D2[0] << 16) | (D2[1] << 8) | D2[2],
+            res);
+            
+            my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+        }
         
-        //my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+        uint8_t buf[2+2*3];
+        buf[0] = 0; // custom message type
+        buf[1] = 2; // barometer measurement
+        memcpy(buf+2, D1, 3);
+        memcpy(buf+5, D2, 3);
+        gps_write_packet(buf, sizeof(buf)); // might drop
     }
 }
 

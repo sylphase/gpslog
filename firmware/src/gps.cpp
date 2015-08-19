@@ -105,12 +105,15 @@ void gps_start_logging() {
 }
 
 bool gps_write_packet(uint8_t const * data, uint32_t length) {
-    uint32_t bytes_required = length;
+    assert(length >= 1);
+    assert(data[0] != ETX && data[0] != DLE && data[0] != CRC);
+    
+    uint32_t bytes_required = 1 + length + 2;
     for(uint32_t i = 1; i < length; i++) {
         if(data[i] == DLE) bytes_required++;
     }
     
-    if(sdcard_buf.write_available() >= 2*length) {
+    if(sdcard_buf.write_available() >= bytes_required) {
         assert(sdcard_buf.write_one(DLE));
         assert(sdcard_buf.write_one(data[0]));
         for(uint16_t i = 1; i < length; i++) {

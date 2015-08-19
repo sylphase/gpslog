@@ -87,10 +87,6 @@ auto main_function = []() {
     
     set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
     
-    ahrs_init();
-    
-    baro_init();
-    
     sdcard_init();
     
     my_printf("sdcard mounted, starting gps\n");
@@ -104,6 +100,10 @@ auto main_function = []() {
     sdcard_open(filename);
     
     gps_start_logging();
+    
+    ahrs_init();
+    
+    baro_init();
     
     set_led_color(0, 1, 0);
     
