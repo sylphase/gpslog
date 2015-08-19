@@ -5,6 +5,8 @@
 #include <csetjmp>
 #include <cstdint>
 
+#include "runner.h"
+
 // public interface is just the Coroutine class and yield()
 
 class CoroutineBase {
@@ -43,27 +45,6 @@ inline void yield() {
         longjmp(current_coroutine->j_, 1);
     }
 }
-
-class RunnerBase {
-public:
-    virtual void run() const = 0;
-    virtual ~RunnerBase() {
-    };
-};
-
-template<typename Function>
-class Runner : public RunnerBase {
-    Function const & func_;
-public:
-    Runner(Function const & func) :
-        func_(func) {
-    }
-    void run() const {
-        func_();
-    }
-    ~Runner() {
-    }
-};
 
 extern RunnerBase const * to_run;
 
