@@ -4,7 +4,7 @@
 
 #include "reactor.h"
 
-CircularBuffer<CallbackRecord, 128> main_callbacks;
+CircularBuffer<CallbackRecord, 8> main_callbacks;
 
 void reactor_run() {
     while(true) {

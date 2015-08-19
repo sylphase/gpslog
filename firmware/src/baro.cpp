@@ -88,7 +88,7 @@ static void baro_main() {
             (D2[0] << 16) | (D2[1] << 8) | D2[2],
         res);
         
-        my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+        //my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
     }
 }
 

@@ -41,6 +41,10 @@ static void yield_interrupt(bool buffer=false, bool check=true) {
     coroutine_waiting_for_i2c2_interrupt = current_coroutine;
     i2c_enable_interrupt(I2C2, (buffer ? I2C_CR2_ITBUFEN : 0) | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
     yield();
+    if(I2C_SR1(I2C2) & (I2C_SR1_SB | I2C_SR1_ADDR | I2C_SR1_ADD10 | I2C_SR1_STOPF | I2C_SR1_BTF)) return;
+    if(buffer && (I2C_SR1(I2C2) & (I2C_SR1_RxNE | I2C_SR1_TxE))) return;
+    if(I2C_SR1(I2C2) & (I2C_SR1_BERR | I2C_SR1_ARLO | I2C_SR1_AF | I2C_SR1_OVR | I2C_SR1_PECERR | I2C_SR1_TIMEOUT | I2C_SR1_SMBALERT)) return;
+    assert(false);
 }
 
 void i2c_write(uint8_t device_address, uint8_t register_address, uint8_t data) {
@@ -438,7 +442,7 @@ static void ahrs_main() {
         for(unsigned int i = 0; i < 4; i++) {
             quat[i] = quatdata[2*i] | (static_cast<uint16_t>(quatdata[2*i+1]) << 8);
         }
-        my_printf("quat: %i %i %i %i\n", quat[0], quat[1], quat[2], quat[3]);
+        //my_printf("quat: %i %i %i %i\n", quat[0], quat[1], quat[2], quat[3]);
     }
 }
 

@@ -20,7 +20,7 @@ public:
         func_(arg1_, arg2_);
     }
 };
-extern CircularBuffer<CallbackRecord, 128> main_callbacks;
+extern CircularBuffer<CallbackRecord, 8> main_callbacks;
 
 void reactor_run();
 
