@@ -26,12 +26,13 @@ static CircularBuffer<uint8_t, 128> in_buf;
 static CoroutineBase *coroutine_waiting_for_byte = nullptr;
 static volatile bool callback_queued;
 
-static void got_interrupt(void *, uint32_t) {
+static void got_interrupt() {
     assert(coroutine_waiting_for_byte);
     CoroutineBase *x = coroutine_waiting_for_byte;
     coroutine_waiting_for_byte = nullptr;
     assert(!x->run_some());
 }
+static Runner<decltype(got_interrupt)> got_interrupt_runner(got_interrupt);
 
 
 extern "C" {
@@ -46,7 +47,7 @@ void usart1_isr(void) {
     in_buf.write_one(data); // wiil silently drop bytes if buffer is full
     
     if(coroutine_waiting_for_byte && !callback_queued) {
-        assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+        reactor_run_in_main(got_interrupt_runner);
         callback_queued = true;
     }
 }

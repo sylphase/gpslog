@@ -48,12 +48,13 @@ enum class CMDData {
 
 static CoroutineBase *coroutine_waiting_for_spi1_interrupt = nullptr;
 
-static void got_byte(void *, uint32_t) {
+static void got_byte() {
     assert(coroutine_waiting_for_spi1_interrupt);
     CoroutineBase *x = coroutine_waiting_for_spi1_interrupt;
     coroutine_waiting_for_spi1_interrupt = nullptr;
     assert(!x->run_some());
 }
+static Runner<decltype(got_byte)> got_byte_runner(got_byte);
 
 extern "C" {
 
@@ -63,7 +64,7 @@ void spi1_isr(void) {
     
     SPI_DR(SPI1); // clear interrupt
     
-    assert(main_callbacks.write_one(CallbackRecord(got_byte, nullptr, 0)));
+    reactor_run_in_main(got_byte_runner);
 }
 
 }

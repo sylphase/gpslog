@@ -85,9 +85,10 @@ static void scheduler_tick(bool run_things) {
     }
 }
 
-static void got_interrupt(void *, uint32_t) {
+static void got_interrupt() {
     scheduler_tick(true);
 }
+static Runner<decltype(got_interrupt)> got_interrupt_runner(got_interrupt);
 
 extern "C" {
 
@@ -95,7 +96,7 @@ void tim2_isr(void) {
     assert(timer_running);
     timer_disable_irq(TIM2, TIM_DIER_CC1IE);
     timer_running = false;
-    assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+    reactor_run_in_main(got_interrupt_runner);
 }
 
 }

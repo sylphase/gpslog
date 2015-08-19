@@ -118,9 +118,10 @@ void baro_init() {
     baro_coroutine.start(baro_main);
 }
 
-static void got_byte(void *, uint32_t) {
+static void got_byte() {
     assert(!baro_coroutine.run_some());
 }
+static Runner<decltype(got_byte)> got_byte_runner(got_byte);
 
 extern "C" {
 
@@ -130,7 +131,7 @@ void spi2_isr(void) {
     
     SPI_DR(SPI2); // clear interrupt
     
-    assert(main_callbacks.write_one(CallbackRecord(got_byte, nullptr, 0)));
+    reactor_run_in_main(got_byte_runner);
 }
 
 }

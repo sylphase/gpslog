@@ -15,12 +15,13 @@
 
 static CoroutineBase *coroutine_waiting_for_usart2_interrupt = nullptr;
 
-static void got_interrupt(void *, uint32_t) {
+static void got_interrupt() {
     assert(coroutine_waiting_for_usart2_interrupt);
     CoroutineBase *x = coroutine_waiting_for_usart2_interrupt;
     coroutine_waiting_for_usart2_interrupt = nullptr;
     assert(!x->run_some());
 }
+static Runner<decltype(got_interrupt)> got_interrupt_runner(got_interrupt);
 
 extern "C" {
 
@@ -30,7 +31,7 @@ void usart2_isr(void) {
     
     usart_disable_tx_interrupt(USART2);
     
-    assert(main_callbacks.write_one(CallbackRecord(got_interrupt, nullptr, 0)));
+    reactor_run_in_main(got_interrupt_runner);
 }
 
 }
