@@ -61,7 +61,7 @@ static volatile bool got_filename = false;
 static char filename[128] = {0};
 void got_date_string(char const *str) {
     strncpy(filename, str, sizeof(filename));
-    strncat(filename, ".txt", sizeof(filename));
+    strncat(filename, ".binr", sizeof(filename));
     got_filename = true;
 }
 
