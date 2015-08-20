@@ -12,6 +12,7 @@
 #include "scheduler.h"
 #include "misc.h"
 #include "gps.h"
+#include "time.h"
 
 #include "baro.h"
 
@@ -90,7 +91,13 @@ static void baro_main() {
             yield_delay(0.1);
         }
     }
+    
+    uint64_t measurement_period = time_get_ticks_per_second()/10;
+    uint64_t measurement_time = (time_get_ticks()/measurement_period + 20) * measurement_period;
+    
     while(true) {
+        yield_until(measurement_time);
+        
         send_command(0x48); // Convert D1 (OSR=4096)
         yield_delay(9.04e-3);
         uint8_t D1[3]; send_command(0x00, 3, D1); // ADC Read
@@ -113,6 +120,8 @@ static void baro_main() {
         memcpy(buf+2, D1, 3);
         memcpy(buf+5, D2, 3);
         gps_write_packet(buf, sizeof(buf)); // might drop
+        
+        measurement_time += measurement_period;
     }
 }
 

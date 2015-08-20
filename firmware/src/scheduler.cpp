@@ -138,13 +138,17 @@ void call_at(uint64_t tick, RunnerBase & call) {
 }
 
 
-void yield_delay(double dt) {
+void yield_until(uint64_t tick) {
     CoroutineBase * cc = current_coroutine;
     assert(cc);
     auto f = [&]() {
         assert(!cc->run_some());
     };
     Runner<decltype(f)> r(f);
-    call_at(time_get_ticks() + dt * time_get_ticks_per_second(), r);
+    call_at(tick, r);
     yield();
+}
+
+void yield_delay(double dt) {
+    yield_until(time_get_ticks() + dt * time_get_ticks_per_second());
 }

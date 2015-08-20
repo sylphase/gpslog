@@ -441,7 +441,12 @@ static void ahrs_main() {
     
     my_printf("ahrs initialized\n");
     
+    uint64_t measurement_period = time_get_ticks_per_second()/10;
+    uint64_t measurement_time = (time_get_ticks()/measurement_period + 20) * measurement_period;
+    
     while(true) {
+        yield_until(measurement_time);
+        
         uint8_t constexpr start = static_cast<uint8_t>(Register::ACC_DATA_X_LSB);
         uint8_t constexpr end = static_cast<uint8_t>(Register::CALIB_STAT);
         uint8_t buf[2+(end-start)];
@@ -449,6 +454,8 @@ static void ahrs_main() {
         buf[1] = 3; // ahrs measurement
         i2c_read(ADDRESS, start, buf+2, end-start);
         gps_write_packet(buf, sizeof(buf)); // might drop
+        
+        measurement_time += measurement_period;
     }
 }
 
