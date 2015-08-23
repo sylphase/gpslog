@@ -85,8 +85,6 @@ auto main_function = []() {
         }
     }
     
-    set_led_color(0, 0, 1); // stop showing red (red won't be visible at all)
-    
     sdcard_init();
     
     my_printf("sdcard mounted, starting gps\n");
@@ -95,6 +93,7 @@ auto main_function = []() {
     
     my_printf("init done, hello world!\n");
     my_printf("waiting for date from gps...\n");
+    set_led_color(0, 0, 1); // blue
     while(!got_filename) yield_delay(0.1);
     my_printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
