@@ -60,7 +60,10 @@ def handle_packet(id_, payload):
             
             print temperature, pressure, h
         elif ord(payload[0]) == 3: # ahrs measurement
-            print payload[1:].encode('hex')
+            #print payload[1:].encode('hex')
+            data = payload[1:]
+            quat_wxyz = [x*2**-14 for x in struct.unpack('<4h', data[0x20-0x8:0x20-0x8+8])]
+            print quat_wxyz
         else:
             assert False, ord(payload[0])
     else:
