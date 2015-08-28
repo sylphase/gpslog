@@ -5,6 +5,10 @@ from __future__ import division
 import csv
 import sys
 import struct
+import math
+
+def norm(xs):
+    return math.sqrt(sum(x**2 for x in xs))
 
 def packet_handler():
     with open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb') as altitude_file:
@@ -72,9 +76,8 @@ def packet_handler():
                         #print payload[1:].encode('hex')
                         data = payload[1:]
                         quat_wxyz = [x*2**-14 for x in struct.unpack('<4h', data[0x20-0x8:0x20-0x8+8])]
-                        import numpy.linalg
                         
-                        if abs(numpy.linalg.norm(quat_wxyz) - 1) <= .001 and gps_time is not None:
+                        if abs(norm(quat_wxyz) - 1) <= .001 and gps_time is not None:
                             ahrs_writer.writerow([gps_time, quat_wxyz[0], quat_wxyz[1], quat_wxyz[2], quat_wxyz[3]])
                     else:
                         assert False, ord(payload[0])
@@ -110,7 +113,7 @@ def parser():
             else:
                 payload.append(b)
 
-with open(sys.argv[1]) as f:
+with open(sys.argv[1], 'rb') as f:
     p = parser(); p.next()
     while True:
         buf = f.read(1024)
