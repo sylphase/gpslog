@@ -7,10 +7,40 @@ import sys
 import struct
 import math
 
+class TimeTracker(object):
+    def __init__(self, nominal_dt):
+        self._nominal_dt = nominal_dt
+        
+        self._countdown = 10
+        self._last_time = None
+    
+    def update(self, last_gps_time):
+        if last_gps_time is None:
+            return
+        
+        if self._countdown:
+            self._countdown -= 1
+            return None
+        
+        measured = last_gps_time + 1/10 / 2
+        
+        if self._last_time is None:
+            self._last_time = measured
+        else:
+            self._last_time += self._nominal_dt
+            error = measured - self._last_time
+            assert abs(error) < 1
+            self._last_time += .01 * error
+        
+        return self._last_time
+
 def norm(xs):
     return math.sqrt(sum(x**2 for x in xs))
 
 def packet_handler():
+    altitude_time_tracker = TimeTracker(1/10)
+    ahrs_time_tracker = TimeTracker(1/10)
+    
     with open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb') as altitude_file:
         altitude_writer = csv.writer(altitude_file)
         altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m'])
@@ -20,7 +50,7 @@ def packet_handler():
             ahrs_writer.writerow(['GPS Time/s', 'Quaternion w', 'Quaternion x', 'Quaternion y', 'Quaternion z'])
             
             prom = None
-            gps_time = None
+            last_gps_time = None
             while True:
                 id_, payload = yield
                 if id_ == 0:
@@ -70,22 +100,23 @@ def packet_handler():
                         
                         #print temperature, pressure, h
                         
-                        if gps_time is not None:
-                            altitude_writer.writerow([gps_time, temperature, pressure, h])
+                        t = altitude_time_tracker.update(last_gps_time)
+                        if t is not None:
+                            altitude_writer.writerow([t, temperature, pressure, h])
                     elif ord(payload[0]) == 3: # ahrs measurement
                         #print payload[1:].encode('hex')
                         data = payload[1:]
                         quat_wxyz = [x*2**-14 for x in struct.unpack('<4h', data[0x20-0x8:0x20-0x8+8])]
-                        
-                        if abs(norm(quat_wxyz) - 1) <= .001 and gps_time is not None:
-                            ahrs_writer.writerow([gps_time, quat_wxyz[0], quat_wxyz[1], quat_wxyz[2], quat_wxyz[3]])
+                        t = ahrs_time_tracker.update(last_gps_time)
+                        if abs(norm(quat_wxyz) - 1) <= .001 and t is not None:
+                            ahrs_writer.writerow([t, quat_wxyz[0], quat_wxyz[1], quat_wxyz[2], quat_wxyz[3]])
                     else:
                         assert False, ord(payload[0])
                 elif id_ == 0xF5: # raw GPS measurements
                     tow, week = struct.unpack('<dH', payload[:10])
                     s = 315964800 + 24*60*60*7 * (1024+week) + tow/1000
                     #print time.ctime(s)
-                    gps_time = s
+                    last_gps_time = s
                 else:
                     pass # ignore all other standard BINR messages
 
