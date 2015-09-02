@@ -7,6 +7,8 @@ import sys
 import struct
 import math
 import time
+import calendar
+import bisect
 
 class TimeTracker(object):
     def __init__(self, nominal_dt):
@@ -65,7 +67,7 @@ def packet_handler():
         open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb') as binr_file:
         
         altitude_writer = csv.writer(altitude_file)
-        altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m'])
+        altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m', 'GPS height/m'])
         
         ahrs_writer = csv.writer(ahrs_file)
         ahrs_writer.writerow(['GPS Time/s', 'Quaternion w', 'Quaternion x', 'Quaternion y', 'Quaternion z'])
@@ -124,7 +126,15 @@ def packet_handler():
                     
                     t = altitude_time_tracker.update(last_gps_time)
                     if t is not None:
-                        altitude_writer.writerow([t, temperature, pressure, h])
+                        i = bisect.bisect_left(pos, (t,))
+                        if i == 0:
+                            gpsh = ''
+                        elif i == len(pos):
+                            gpsh = ''
+                        else:
+                            assert pos[i-1][0] <= t <= pos[i][0], (i, len(pos), t, pos[i][0], pos[i+1][0])
+                            gpsh = pos[i-1][1][2]
+                        altitude_writer.writerow([t, temperature, pressure, h, gpsh])
                 elif ord(payload[0]) == 3: # ahrs measurement
                     #print payload[1:].encode('hex')
                     data = payload[1:]
@@ -191,6 +201,18 @@ def parser():
                     assert False
             else:
                 payload.append(b)
+
+
+pos = []
+if len(sys.argv) == 3:
+    with open(sys.argv[2], 'rb') as f:
+        for line in f:
+            if line.startswith('%'): continue
+            GPST_date, GPST_time, latitude, longitude, height, Q, ns, sdn, sde, sdu, sdne, sdeu, sdun, age, ratio = line.split()
+            gpst = calendar.timegm(time.strptime(GPST_date + " " + GPST_time.split('.', 1)[0], '%Y/%m/%d %H:%M:%S')) + float('0.' + GPST_time.split('.', 1)[1])
+            pos.append((gpst, (latitude, longitude, height)))
+    is_sorted = lambda x: sorted(x) == x
+    assert is_sorted([gpst for gpst, p in pos])
 
 with open(sys.argv[1], 'rb') as f:
     p = parser(); p.next()
