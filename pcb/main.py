@@ -56,7 +56,7 @@ def main():
     yield SSM3K15AFS.SSM3K15AFS_LF('Q1', D=vcc3_3_enable, G=vcc3_3_enable_pulldown, S=gnd)
     
     vcc3_3 = Net('v3.3')
-    yield AAT3221.linear('REG_', VBAT_MAX, 3.3, vbat, gnd, vcc3_3, enable=vcc3_3_enable)
+    yield AAT3221.linear('REG_', VBAT_MAX, 3.3, vbat, gnd, vcc3_3, enable=vcc3_3_enable) # XXX obsolete, replace
     
     # UART CONNECTOR
     port_cts = Net('port_cts')
@@ -90,13 +90,10 @@ def main():
         GND=gnd,
     )
     #yield GP_1575_25_4_A_02.GP_1575_25_4_A_02('A1', ANT=ant1)
-    vin_a = Net('vin_a')
-    yield BLM15G.BLM15GG471SN1D('FB1', A=vcc3_3, B=vin_a)
-    yield capacitor(22e-12)('C1', A=vin_a, B=gnd)
     yield NV08C_CSM.NV08C_CSM('U1',
         GND=gnd,
         
-        VIN_A=vin_a,
+        VIN_A=vcc3_3,
         VIN_D=vcc3_3,
         VBAT=vcc3_3,
         VCCIO=vcc3_3,
@@ -111,8 +108,8 @@ def main():
     yield S1315F8_RAW.S1315F8_RAW('U2',
         GND=gnd,
         AGND=gnd,
-        VBAT=vin_a,
-        VCC33=vin_a,
+        VBAT=vcc3_3,
+        VCC33=vcc3_3,
         RFIN=ant1,
         TXD0=gps_tx,
         RXD0=gps_rx,
@@ -143,8 +140,8 @@ def main():
     sensor_spi = harnesses.SPIBus.new('sensor_spi_')
     
     # IMU
-    imu_spi_nCS = Net('imu_spi_nCS') # XXX connect to uC
-    imu_INT = Net('imu_INT') # XXX connect to uC
+    imu_spi_nCS = Net('imu_spi_nCS')
+    imu_INT = Net('imu_INT')
     yield capacitor(10e-9)('U3C3', A=vcc3_3, B=gnd) # near VDDIO
     yield capacitor(0.1e-6)('U3C2', A=vcc3_3, B=gnd) # near VDD
     REGOUT = Net('REGOUT')
@@ -165,7 +162,7 @@ def main():
     )
     
     # EXTERNAL IMUs
-    external_spi_nCS = [Net('external_spi_nCS_' + str(i)) for i in xrange(3)] # XXX connect these to uC
+    external_spi_nCS = [Net('external_spi_nCS_' + str(i)) for i in xrange(3)]
     for i in xrange(3):
         yield SH.SM06B_SRSS_TB('VCC GND SCLK MOSI MISO nCS'.split(' '))('P9_'+str(i),
             VCC=vcc3_3,
@@ -240,7 +237,7 @@ def main():
         GND=gnd,
         SWDIO=uc_SWDIO,
         NRST=uc_NRST,
-        SWO=uc_SWO, # XXX plug into something for LED
+        SWO=uc_SWO,
         MECHANICAL=gnd,
     )
     
@@ -258,14 +255,14 @@ def main():
         
         #PA4=vbat_divided, # ADC12_IN4
         
-        #PA2=port_rxd, # USART2_TX # XXX move to 5V tolerant pins
+        #PA2=port_rxd, # USART2_TX
         #PA3=port_txd, # USART2_RX
         #PA0=port_rts, # USART2_CTS
         #PA1=port_cts, # USART2_RTS
         PB10=port_rxd, # USART3_TX (are 5V tolerant!)
         PB11=port_txd, # USART3_RX
-        PB13=port_rts, # USART3_CTS
-        PB14=port_cts, # USART3_RTS
+        #PB13=port_rts, # USART3_CTS # XXX connect these to GPIOs instead
+        #PB14=port_cts, # USART3_RTS
         
         #PB6 # USART1_TX (5V tolerant)
         #PB7 # USART1_RX
@@ -284,24 +281,20 @@ def main():
         #PB10=ahrs_i2c.SCL, # I2C2_SCL
         #PB11=ahrs_i2c.SDA, # I2C2_SDA
         
-        PB12=baro_spi_nCS, # SPI2_NSS
+        PB12=external_spi_nCS[0], # SPI2_NSS
         PB13=sensor_spi.SCLK, # SPI2_SCK
         PB14=sensor_spi.MISO, # SPI2_MISO
         PB15=sensor_spi.MOSI, # SPI2_MOSI
         
         PA9 =gps_rx, # USART1_TX (5V tolerant)
         PA10=gps_tx, # USART1_RX
-        #PA11 # UART1_CTS
+        #PA11 # USART1_CTS
         #PA12 # USART1_RTS
         
         PA8=usb_host_sense, # need to be 5V tolerant!
         PA11=usb.Dm, # USBDM
         PA12=usb.Dp, # USBDP
         PB6=usb_pullup,
-        
-        #PB5=ahrs_int,
-        #PB6=ahrs_i2c.SCL, # I2C1_SCL
-        #PB7=ahrs_i2c.SDA, # I2C1_SDA
         
         PA13=uc_SWDIO, # JTMS/SWDIO
         PA14=uc_SWCLK, # JTCK/SWCLK
@@ -315,6 +308,13 @@ def main():
         PA6=status_led_red_cathode, # TIM3_CH1
         PA7=status_led_green_cathode, # TIM3_CH2
         PB0=status_led_blue_cathode, # TIM3_CH3
+        
+        PC13=uc_SWO,
+        PB7=imu_spi_nCS,
+        PB8=imu_INT,
+        PB9=baro_spi_nCS,
+        PA5=external_spi_nCS[1],
+        PA2=external_spi_nCS[2],
     )
 
 desc = main()
