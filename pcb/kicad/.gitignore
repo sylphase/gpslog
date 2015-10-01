@@ -4,3 +4,5 @@
 /*.pro
 /gen.pretty/
 /fp-lib-table
+/*.zip
+/out/
