@@ -28,6 +28,7 @@ from autoee_components.lite_on import LTST_C19HE1WT
 from autoee_components.toshiba import CUS520
 from autoee_components.taoglas import GP_1575_25_4_A_02
 from autoee_components.invensense import MPU_9250
+from autoee_components.microchip import MCP73832
 
 microstrip_width = 0.01198*INCH
 
@@ -46,6 +47,17 @@ def main():
         N=gnd,
         MECHANICAL=gnd,
     )
+    
+    usb_5v = Net('usb_5v')
+    
+    U100 = yield MCP73832.MCP73832T_2ACI_OT('U100',
+        VDD=usb_5v,
+        VBAT=vbat,
+        VSS=gnd,
+    )
+    yield resistor(1000/.5)('R100', A=U100.pin.PROG, B=gnd)
+    yield capacitor(4.7e-6)('C100', A=U100.pin.VDD, B=gnd)
+    yield capacitor(4.7e-6)('C101', A=U100.pin.VBAT, B=gnd)
     
     # REGULATOR & POWER SWITCH
     vcc3_3_enable = Net('vcc3_3_enable')
@@ -213,11 +225,10 @@ def main():
     
     # USB port
     usb = harnesses.USB.new('usb_')
-    usb_host_sense = Net('usb_host_sense')
     usb_pullup = Net('usb_pullup')
     yield resistor(1.5e3)('R6', A=usb_pullup, B=usb.Dp)
     yield _10118194_0001LF._10118194_0001LF('P7',
-        VCC=usb_host_sense,
+        VCC=usb_5v,
         Dm=usb.Dm,
         Dp=usb.Dp,
         #ID floats to designate slave
@@ -291,7 +302,7 @@ def main():
         #PA11 # USART1_CTS
         #PA12 # USART1_RTS
         
-        PA8=usb_host_sense, # need to be 5V tolerant!
+        PA8=usb_5v, # need to be 5V tolerant!
         PA11=usb.Dm, # USBDM
         PA12=usb.Dp, # USBDP
         PB6=usb_pullup,
