@@ -145,7 +145,7 @@ def main():
     yield resistor(10e3)('R5', A=vcc3_3, B=uc_NRST)
     serial_txd = Net('serial_txd')
     serial_rxd = Net('serial_rxd')
-    yield SH.SM07B_SRSS_TB('VBAT GND SWCLK SWDIO NRST TX RX'.split(' '))('P5',
+    yield SH.SM07B_SRSS_TB('GND SWDIO SWCLK TX RX NRST VBAT'.split(' '))('P5',
         VBAT=vbat,
         GND=gnd,
         SWCLK=uc_SWCLK,
