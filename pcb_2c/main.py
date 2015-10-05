@@ -29,6 +29,8 @@ from autoee_components.toshiba import CUS520
 from autoee_components.taoglas import GP_1575_25_4_A_02
 from autoee_components.invensense import MPU_9250
 from autoee_components.microchip import MCP73832
+from autoee_components.on_semiconductor import NCP702
+from autoee_components.epson import SG_210STF
 
 microstrip_width = 0.01198*INCH
 
@@ -42,40 +44,27 @@ def main():
     
     # BATTERY
     vbat = Net('vbat'); VBAT_MAX = 4.2
-    yield PH.S2B_PH_SM4_TB(['P', 'N'])('P3',
-        P=vbat,
-        N=gnd,
-        MECHANICAL=gnd,
-    )
     
     # REGULATOR & POWER SWITCH
     vcc3_3_enable = Net('vcc3_3_enable')
-    yield resistor(10e6)('R1', A=vbat, B=vcc3_3_enable)
-    yield capacitor(1e-6)('C2', A=vcc3_3_enable, B=gnd)
-    vcc3_3_enable_pulldown = Net('vcc3_3_enable_pulldown')
-    yield resistor(10e3)('R7', A=vcc3_3_enable_pulldown, B=gnd)
-    yield SSM3K15AFS.SSM3K15AFS_LF('Q1', D=vcc3_3_enable, G=vcc3_3_enable_pulldown, S=gnd)
-    
+    vcc3_3_enable_real = Net('vcc3_3_enable_real')
+    vcc3_3_enable_uc = Net('vcc3_3_enable_uc')
     vcc3_3 = Net('v3.3')
-    yield AAT3221.linear('REG_', VBAT_MAX, 3.3, vbat, gnd, vcc3_3, enable=vcc3_3_enable) # XXX obsolete, replace
     
-    # UART CONNECTOR
-    port_cts = Net('port_cts')
-    port_vcc = Net('port_vcc')
-    port_txd = Net('port_txd')
-    port_rxd = Net('port_rxd')
-    port_rts = Net('port_rts')
-    #yield CUS520.CUS520_H3F('D1', A=vcc3_3, C=port_vcc)
-    connector = SH.SM06B_SRSS_TB('gnd cts vcc txd rxd rts'.split(' '))
-    yield connector('P1',
-        gnd=gnd,
-        cts=port_cts,
-        vcc=port_vcc,
-        txd=port_txd,
-        rxd=port_rxd,
-        rts=port_rts,
-        MECHANICAL=gnd,
+    yield capacitor(2.2e-6)('C1', A=vbat, B=vcc3_3_enable)
+    yield resistor(90e3)('R2', A=vcc3_3_enable_uc, B=vcc3_3_enable)
+    yield resistor(100e3)('R3', A=vcc3_3_enable, B=vcc3_3_enable_real)
+    yield resistor(2000e3)('R4', A=vcc3_3_enable, B=vcc3_3)
+    
+    yield capacitor(1e-6)('U1C1', A=vbat, B=gnd) # PCB: put close to U1
+    yield NCP702.by_voltage[3.3]('U1',
+        IN=vbat,
+        GND=gnd,
+        EN=vcc3_3_enable_real,
+        OUT=vcc3_3,
+        NC=gnd, # thermal
     )
+    yield capacitor(1e-6)('U1C2', A=vcc3_3, B=gnd) # PCB: put close to U1
     
     # GPS RECEIVER & ANTENNA CONNECTORS
     gps_tx = Net('gps_tx')
@@ -98,7 +87,7 @@ def main():
     
     
     # RF SHIELD
-    yield BMI_S_202.BMI_S_202('SH', GND=gnd)
+    #yield BMI_S_202.BMI_S_202('SH', GND=gnd)
     
     # STATUS LED
     # two color led for status
@@ -121,7 +110,7 @@ def main():
     # SD CARD
     sd_spi = harnesses.SPIBus.new('sd_spi_')
     sd_spi_nCS = Net('sd_spi_nCS')
-    yield _101_00660._101_00660_68_6('P4',
+    P4 = yield _101_00660._101_00660_68_6('P4',
         G=gnd,
         VSS=gnd,
         VDD=vcc3_3,
@@ -131,107 +120,83 @@ def main():
         CLK=sd_spi.SCLK,
         DO=sd_spi.MISO,
     )
+    yield capacitor(10e-6)('P4C1', A=P4.pin.VDD, B=P4.pin.VSS)
     
     # OSCILLATOR
     XTALIN = Net('XTALIN')
     yield capacitor(0.1e-6)('U6C1', A=vcc3_3, B=gnd)
-    yield Si501._501ABA8M00000DAF('U6',
+    #yield Si501._501ABA8M00000DAF('U6',
+    #    #OE
+    #    GND=gnd,
+    #    CLK=XTALIN,
+    #    VDD=vcc3_3,
+    #)
+    yield SG_210STF.SG_210STF_8_0000ML('U6',
         #OE
         GND=gnd,
-        CLK=XTALIN,
-        VDD=vcc3_3,
+        OUT=XTALIN,
+        VCC=vcc3_3,
     )
     
-    # MICROCONTROLLER & DEBUG PORT
+    # DEBUG/BATTERY/UART PORT
     uc_SWCLK = Net('uc_SWCLK')
     uc_SWDIO = Net('uc_SWDIO')
     uc_NRST = Net('uc_NRST')
     yield resistor(10e3)('R5', A=vcc3_3, B=uc_NRST)
-    uc_SWO = Net('uc_SWO')
-    yield SH.SM06B_SRSS_TB('VREF SWCLK GND SWDIO NRST SWO'.split(' '))('P5',
-        VREF=vcc3_3,
-        SWCLK=uc_SWCLK,
+    serial_txd = Net('serial_txd')
+    serial_rxd = Net('serial_rxd')
+    yield SH.SM07B_SRSS_TB('VBAT GND SWCLK SWDIO NRST TX RX'.split(' '))('P5',
+        VBAT=vbat,
         GND=gnd,
+        SWCLK=uc_SWCLK,
         SWDIO=uc_SWDIO,
         NRST=uc_NRST,
-        SWO=uc_SWO,
+        TX=serial_txd,
+        RX=serial_rxd,
         MECHANICAL=gnd,
     )
     
-    for i in xrange(4):
-        yield capacitor(0.1e-6)('U5C%i'%i, A=vcc3_3, B=gnd)
-    yield capacitor(4.7e-6)('U5C4', A=vcc3_3, B=gnd) # connect to VDD_3 (pin 48)
-    yield capacitor(10e-9)('U5C6', A=vcc3_3, B=gnd) # connect to VDDA (pin 9)
-    yield capacitor(1e-6)('U5C7', A=vcc3_3, B=gnd) # connect to VDDA (pin 9)
-    yield STM32F103.STM32F103CBU6('U5',
+    for i in xrange(3):
+        yield capacitor(0.1e-6)('U5C%i'%i, A=vcc3_3, B=gnd) # PCB: pins 1, 19, and 27
+    yield capacitor(4.7e-6)('U5C4', A=vcc3_3, B=gnd) # PCB: connect to VDD_3 (pin 1)
+    yield capacitor(10e-9)('U5C6', A=vcc3_3, B=gnd) # PCB: connect to VDDA (pin 6)
+    yield capacitor(1e-6)('U5C7', A=vcc3_3, B=gnd) # PCB: connect to VDDA (pin 6)
+    yield STM32F103.STM32F103TBU6('U5',
         VSS=gnd, VSSA=gnd,
-        VDD=vcc3_3, VDDA=vcc3_3, VBAT=vcc3_3,
+        VDD=vcc3_3, VDDA=vcc3_3, #VBAT=vcc3_3,
         
         PD0=XTALIN, # OSC_IN
         NRST=uc_NRST,
         
-        #PA4=vbat_divided, # ADC12_IN4
+        PA2=gps_rx, # USART2_TX
+        PA3=gps_tx, # USART2_RX
         
-        #PA2=port_rxd, # USART2_TX
-        #PA3=port_txd, # USART2_RX
-        #PA0=port_rts, # USART2_CTS
-        #PA1=port_cts, # USART2_RTS
-        PB10=port_rxd, # USART3_TX (are 5V tolerant!)
-        PB11=port_txd, # USART3_RX
-        #PB13=port_rts, # USART3_CTS # XXX connect these to GPIOs instead
-        #PB14=port_cts, # USART3_RTS
+        PB6=serial_txd, # USART1_TX (5V tolerant)
+        PB7=serial_rxd, # USART1_RX
+        #PA9 =serial_txd, # USART1_TX (5V tolerant)
+        #PA10=serial_rxd, # USART1_RX
         
-        #PB6 # USART1_TX (5V tolerant)
-        #PB7 # USART1_RX
-
-        
-        #PA4=sd_spi_nCS, # SPI1_NSS
+        PA15=sd_spi_nCS,  # SPI1_NSS
+        PB3 =sd_spi.SCLK, # SPI1_SCK
+        PB4 =sd_spi.MISO, # SPI1_MISO
+        PB5 =sd_spi.MOSI, # SPI1_MOSI
+        #PA4=sd_spi_nCS,  # SPI1_NSS
         #PA5=sd_spi.SCLK, # SPI1_SCK
         #PA6=sd_spi.MISO, # SPI1_MISO
         #PA7=sd_spi.MOSI, # SPI1_MOSI
-        PA15=sd_spi_nCS, # SPI1_NSS
-        PB3=sd_spi.SCLK, # SPI1_SCK
-        PB4=sd_spi.MISO, # SPI1_MISO
-        PB5=sd_spi.MOSI, # SPI1_MOSI
-        
-        #PB2=ahrs_int,
-        #PB10=ahrs_i2c.SCL, # I2C2_SCL
-        #PB11=ahrs_i2c.SDA, # I2C2_SDA
-        
-        #PB12=external_spi_nCS[0], # SPI2_NSS
-        #PB13=sensor_spi.SCLK, # SPI2_SCK
-        #PB14=sensor_spi.MISO, # SPI2_MISO
-        #PB15=sensor_spi.MOSI, # SPI2_MOSI
-        
-        PA9 =gps_rx, # USART1_TX (5V tolerant)
-        PA10=gps_tx, # USART1_RX
-        #PA11 # USART1_CTS
-        #PA12 # USART1_RTS
-        
-        #PA8=usb_5v, # need to be 5V tolerant!
-        #PA11=usb.Dm, # USBDM
-        #PA12=usb.Dp, # USBDP
-        #PB6=usb_pullup,
         
         PA13=uc_SWDIO, # JTMS/SWDIO
         PA14=uc_SWCLK, # JTCK/SWCLK
         #PB3=uc_SWO, # TRACESWO
         #PB4 # JNTRST
         
-        PB1=vcc3_3_enable_pulldown,
+        PB1=vcc3_3_enable_uc, # must not be 5V tolerant (injected current limits)
         
         BOOT0=gnd, # main flash memory
         
         PA6=status_led_red_cathode, # TIM3_CH1
         PA7=status_led_green_cathode, # TIM3_CH2
         PB0=status_led_blue_cathode, # TIM3_CH3
-        
-        PC13=uc_SWO,
-        #PB7=imu_spi_nCS,
-        #PB8=imu_INT,
-        #PB9=baro_spi_nCS,
-        #PA5=external_spi_nCS[1],
-        #PA2=external_spi_nCS[2],
     )
 
 desc = main()

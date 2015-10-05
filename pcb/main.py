@@ -29,6 +29,8 @@ from autoee_components.toshiba import CUS520
 from autoee_components.taoglas import GP_1575_25_4_A_02
 from autoee_components.invensense import MPU_9250
 from autoee_components.microchip import MCP73832
+from autoee_components.on_semiconductor import NCP702
+from autoee_components.epson import SG_210STF
 
 microstrip_width = 0.01198*INCH
 
@@ -68,7 +70,15 @@ def main():
     yield SSM3K15AFS.SSM3K15AFS_LF('Q1', D=vcc3_3_enable, G=vcc3_3_enable_pulldown, S=gnd)
     
     vcc3_3 = Net('v3.3')
-    yield AAT3221.linear('REG_', VBAT_MAX, 3.3, vbat, gnd, vcc3_3, enable=vcc3_3_enable) # XXX obsolete, replace
+    yield capacitor(1e-6)('REG_C1', A=vbat, B=gnd) # PCB: put close to U1
+    yield NCP702.by_voltage[3.3]('REG_U1',
+        IN=vbat,
+        GND=gnd,
+        EN=vcc3_3_enable,
+        OUT=vcc3_3,
+        NC=gnd, # thermal
+    )
+    yield capacitor(1e-6)('REG_C2', A=vcc3_3, B=gnd) # PCB: put close to U1
     
     # UART CONNECTOR
     port_cts = Net('port_cts')
@@ -216,11 +226,17 @@ def main():
     # OSCILLATOR
     XTALIN = Net('XTALIN')
     yield capacitor(0.1e-6)('U6C1', A=vcc3_3, B=gnd)
-    yield Si501._501ABA8M00000DAF('U6',
+    #yield Si501._501ABA8M00000DAF('U6',
+    #    #OE
+    #    GND=gnd,
+    #    CLK=XTALIN,
+    #    VDD=vcc3_3,
+    #)
+    yield SG_210STF.SG_210STF_8_0000ML('U6',
         #OE
         GND=gnd,
-        CLK=XTALIN,
-        VDD=vcc3_3,
+        OUT=XTALIN,
+        VCC=vcc3_3,
     )
     
     # USB port
