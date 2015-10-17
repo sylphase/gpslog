@@ -1,0 +1,15 @@
+110mAh battery: 2.65 g
+antenna: 2.8 grams
+gps module: 1.6g
+pcb: 2.42 g/in^2
+leftover: -.05
+
+requirement: 7 grams total
+
+
+current usage:
+GPS module: 28 mA
+antenna: 3mA
+leftover: 24 mA if 110 mAh battery is used
+
+requirement: 2 hours
