@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdio>
 #include <cassert>
 #include <cstring>
@@ -29,14 +30,35 @@
         PA2=external_spi_nCS[2],
 */
 
-static void send_command(uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
-    gpio_clear(GPIOB, GPIO9);
+class Pin {
+    uint32_t gpioport_;
+    uint16_t gpio_;
+public:
+    Pin(uint32_t gpioport, uint16_t gpio) : gpioport_(gpioport), gpio_(gpio) { }
+    void init() {
+        gpio_set(gpioport_, gpio_);
+        gpio_set_mode(gpioport_, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, gpio_);
+    }
+    void set() { gpio_set(gpioport_, gpio_); }
+    void clear() { gpio_clear(gpioport_, gpio_); }
+};
+
+static void send_command(Pin & nCS_pin, uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
+    nCS_pin.clear();
     SPI_DR(SPI2) = cmd; yield();
     while(read--) {
-        SPI_DR(SPI2) = cmd; yield(); *dest++ = SPI_DR(SPI2);
+        SPI_DR(SPI2) = 0; yield(); *dest++ = SPI_DR(SPI2);
     }
-    gpio_set(GPIOB, GPIO9);
+    nCS_pin.set();
 }
+
+Pin baro_nCS_pin(GPIOB, GPIO9);
+std::array<Pin, 4> imu_nCS_pins{
+    Pin(GPIOB, GPIO12),
+    Pin(GPIOA, GPIO5),
+    Pin(GPIOA, GPIO2),
+    Pin(GPIOB, GPIO7),
+};
 
 static Coroutine<2048> sensors_coroutine;
 
@@ -75,26 +97,35 @@ void decode(uint16_t prom[8], uint32_t D1, uint32_t D2, Result & res) {
 }
 
 static void sensors_main() {
+    //for(Pin & pin : imu_nCS_pins) {
+    //    aaa
+    //}
+    
+    //assert(rcc_apb1_frequency / 2 <= 20e6);
+    //spi_set_baudrate_prescaler(SPI1, 0);    
+    
     uint16_t prom[8];
-    send_command(0x1E); // Reset
-    yield_delay(15e-3);
-    for(int i = 0; i < 8; i++) {
-        uint8_t buf[2];
-        send_command(0xA0 + 2 * i, 2, buf); // PROM Read
-        prom[i] = (buf[0] << 8) | buf[1];
-        my_printf("prom[%i] = %i\n", i, prom[i]);
-    }
-    {
-        uint8_t buf[2+8*2];
-        buf[0] = 0; // custom message type
-        buf[1] = 1; // barometer prom
+    { // baro init
+        send_command(baro_nCS_pin, 0x1E); // Reset
+        yield_delay(15e-3);
         for(int i = 0; i < 8; i++) {
-            buf[2+2*i+0] = prom[i] >> 8;
-            buf[2+2*i+1] = prom[i] & 255;
+            uint8_t buf[2];
+            send_command(baro_nCS_pin, 0xA0 + 2 * i, 2, buf); // PROM Read
+            prom[i] = (buf[0] << 8) | buf[1];
+            my_printf("prom[%i] = %i\n", i, prom[i]);
         }
-        while(!gps_write_packet(buf, sizeof(buf))) {
-            // make sure this is logged
-            yield_delay(0.1);
+        {
+            uint8_t buf[2+8*2];
+            buf[0] = 0; // custom message type
+            buf[1] = 1; // barometer prom
+            for(int i = 0; i < 8; i++) {
+                buf[2+2*i+0] = prom[i] >> 8;
+                buf[2+2*i+1] = prom[i] & 255;
+            }
+            while(!gps_write_packet(buf, sizeof(buf))) {
+                // make sure this is logged
+                yield_delay(0.1);
+            }
         }
     }
     
@@ -104,28 +135,43 @@ static void sensors_main() {
     while(true) {
         yield_until(measurement_time);
         
-        send_command(0x48); // Convert D1 (OSR=4096)
-        yield_delay(9.04e-3);
-        uint8_t D1[3]; send_command(0x00, 3, D1); // ADC Read
-        send_command(0x58); // Convert D2 (OSR=4096)
-        yield_delay(9.04e-3);
-        uint8_t D2[3]; send_command(0x00, 3, D2); // ADC Read
-        
-        if(false) {
-            Result res; decode(prom,
-                (D1[0] << 16) | (D1[1] << 8) | D1[2],
-                (D2[0] << 16) | (D2[1] << 8) | D2[2],
-            res);
+        { // barometer
+            send_command(baro_nCS_pin, 0x48); // Convert D1 (OSR=4096)
+            yield_delay(9.04e-3);
+            uint8_t D1[3]; send_command(baro_nCS_pin, 0x00, 3, D1); // ADC Read
+            send_command(baro_nCS_pin, 0x58); // Convert D2 (OSR=4096)
+            yield_delay(9.04e-3);
+            uint8_t D2[3]; send_command(baro_nCS_pin, 0x00, 3, D2); // ADC Read
             
-            my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+            if(true) {
+                Result res; decode(prom,
+                    (D1[0] << 16) | (D1[1] << 8) | D1[2],
+                    (D2[0] << 16) | (D2[1] << 8) | D2[2],
+                res);
+                
+                my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
+            }
+            
+            uint8_t buf[2+2*3];
+            buf[0] = 0; // custom message type
+            buf[1] = 2; // barometer measurement
+            memcpy(buf+2, D1, 3);
+            memcpy(buf+5, D2, 3);
+            gps_write_packet(buf, sizeof(buf)); // might drop
         }
         
-        uint8_t buf[2+2*3];
-        buf[0] = 0; // custom message type
-        buf[1] = 2; // barometer measurement
-        memcpy(buf+2, D1, 3);
-        memcpy(buf+5, D2, 3);
-        gps_write_packet(buf, sizeof(buf)); // might drop
+        for(uint8_t i = 0; i < imu_nCS_pins.size(); i++) {
+            Pin & pin = imu_nCS_pins[i];
+            
+            uint8_t buf[14];
+            send_command(pin, 0x80 + 0x3B, sizeof(buf), buf);
+            
+            my_printf("imu%i ", i);
+            for(uint8_t j = 0; j < sizeof(buf); j++) {
+                my_printf("%02X", buf[j]);
+            }
+            my_printf("\n");
+        }
         
         measurement_time += measurement_period;
     }
@@ -134,17 +180,18 @@ static void sensors_main() {
 void sensors_init() {
     rcc_periph_reset_pulse(RST_SPI2); rcc_periph_clock_enable(RCC_SPI2);
     
-    gpio_set(GPIOB, GPIO9);
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO9);
+    baro_nCS_pin.init();
+    for(Pin & pin : imu_nCS_pins) pin.init();
+    
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO13);
     gpio_set(GPIOB, GPIO14); // pullup
     gpio_set_mode(GPIOB, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO14);
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO15);
     
     spi_reset(SPI2);
-    assert(rcc_apb1_frequency / 2 <= 20e6);
-    spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_2, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-        SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+    assert(rcc_apb1_frequency / 64 <= 1e6);
+    spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_64, SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
+        SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
     
     spi_enable_software_slave_management(SPI2);
     spi_set_nss_high(SPI2);
