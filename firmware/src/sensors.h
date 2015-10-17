@@ -1,6 +1,6 @@
 #ifndef GUARD_RLWHHANMQRQMHUSG
 #define GUARD_RLWHHANMQRQMHUSG
 
-void baro_init();
+void sensors_init();
 
 #endif

@@ -16,7 +16,7 @@
 #include "gps.h"
 #include "sdcard.h"
 #include "coroutine.h"
-#include "baro.h"
+#include "sensors.h"
 #include "reactor.h"
 #include "misc.h"
 #include "scheduler.h"
@@ -100,7 +100,7 @@ auto main_function = []() {
     
     gps_start_logging();
     
-    baro_init();
+    sensors_init();
     
     set_led_color(0, 1, 0);
     

@@ -14,7 +14,7 @@
 #include "gps.h"
 #include "time.h"
 
-#include "baro.h"
+#include "sensors.h"
 
 /*
         PB12=external_spi_nCS[0], # SPI2_NSS
@@ -38,7 +38,7 @@ static void send_command(uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
     gpio_set(GPIOB, GPIO9);
 }
 
-static Coroutine<2048> baro_coroutine;
+static Coroutine<2048> sensors_coroutine;
 
 struct Result {
     double temperature; // kelvin
@@ -74,7 +74,7 @@ void decode(uint16_t prom[8], uint32_t D1, uint32_t D2, Result & res) {
     res.pressure = (D1*SENS/pow(2, 21) - OFF)/pow(2, 15);
 }
 
-static void baro_main() {
+static void sensors_main() {
     uint16_t prom[8];
     send_command(0x1E); // Reset
     yield_delay(15e-3);
@@ -131,7 +131,7 @@ static void baro_main() {
     }
 }
 
-void baro_init() {
+void sensors_init() {
     rcc_periph_reset_pulse(RST_SPI2); rcc_periph_clock_enable(RCC_SPI2);
     
     gpio_set(GPIOB, GPIO9);
@@ -154,11 +154,11 @@ void baro_init() {
     nvic_enable_irq(NVIC_SPI2_IRQ);
     spi_enable_rx_buffer_not_empty_interrupt(SPI2);
     
-    baro_coroutine.start(baro_main);
+    sensors_coroutine.start(sensors_main);
 }
 
 static void got_byte() {
-    assert(!baro_coroutine.run_some());
+    assert(!sensors_coroutine.run_some());
 }
 static Runner<decltype(got_byte)> got_byte_runner(got_byte);
 
