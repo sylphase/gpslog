@@ -17,19 +17,25 @@
 #include "baro.h"
 
 /*
-        PB12=baro_spi_nCS, # SPI2_NSS
-        PB13=baro_spi.SCLK, # SPI2_SCK
-        PB14=baro_spi.MISO, # SPI2_MISO
-        PB15=baro_spi.MOSI, # SPI2_MOSI
+        PB12=external_spi_nCS[0], # SPI2_NSS
+        PB13=sensor_spi.SCLK, # SPI2_SCK
+        PB14=sensor_spi.MISO, # SPI2_MISO
+        PB15=sensor_spi.MOSI, # SPI2_MOSI
+        
+        PB7=imu_spi_nCS,
+        PB8=imu_INT,
+        PB9=baro_spi_nCS,
+        PA5=external_spi_nCS[1],
+        PA2=external_spi_nCS[2],
 */
 
 static void send_command(uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
-    gpio_clear(GPIOB, GPIO12);
+    gpio_clear(GPIOB, GPIO9);
     SPI_DR(SPI2) = cmd; yield();
     while(read--) {
         SPI_DR(SPI2) = cmd; yield(); *dest++ = SPI_DR(SPI2);
     }
-    gpio_set(GPIOB, GPIO12);
+    gpio_set(GPIOB, GPIO9);
 }
 
 static Coroutine<2048> baro_coroutine;
@@ -128,8 +134,8 @@ static void baro_main() {
 void baro_init() {
     rcc_periph_reset_pulse(RST_SPI2); rcc_periph_clock_enable(RCC_SPI2);
     
-    gpio_set(GPIOB, GPIO12);
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO12);
+    gpio_set(GPIOB, GPIO9);
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO9);
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO13);
     gpio_set(GPIOB, GPIO14); // pullup
     gpio_set_mode(GPIOB, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO14);
