@@ -18,7 +18,6 @@
 #include "coroutine.h"
 #include "baro.h"
 #include "reactor.h"
-#include "ahrs.h"
 #include "misc.h"
 #include "scheduler.h"
 
@@ -100,8 +99,6 @@ auto main_function = []() {
     sdcard_open(filename);
     
     gps_start_logging();
-    
-    ahrs_init();
     
     baro_init();
     
