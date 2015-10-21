@@ -95,7 +95,8 @@ CMDData data_mode=CMDData::NONE, uint16_t bytes=0, uint8_t *data=nullptr) {
     SEND((argument >>  0) & 255);
     my_spi_xfer((crc << 1) | 1);
     uint16_t resp;
-    while(true) { // should abort after 8 bytes (N_CR)
+    for(int i = 0; ; i++) {
+        if(i == 8+1) assert(false); // abort after 8 bytes (N_CR)
         resp = my_spi_xfer(0xFF);
         if((resp & 0b10000000) == 0) {
             break;

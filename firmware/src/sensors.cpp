@@ -135,6 +135,10 @@ static void sensors_main() {
     while(true) {
         yield_until(measurement_time);
         
+        uint8_t packet[2+2*3+4*14];
+        packet[0] = 0; // custom message type
+        packet[1] = 4; // barometer+4xIMU measurement
+        
         { // barometer
             send_command(baro_nCS_pin, 0x48); // Convert D1 (OSR=4096)
             yield_delay(9.04e-3);
@@ -143,7 +147,7 @@ static void sensors_main() {
             yield_delay(9.04e-3);
             uint8_t D2[3]; send_command(baro_nCS_pin, 0x00, 3, D2); // ADC Read
             
-            if(true) {
+            if(false) {
                 Result res; decode(prom,
                     (D1[0] << 16) | (D1[1] << 8) | D1[2],
                     (D2[0] << 16) | (D2[1] << 8) | D2[2],
@@ -152,26 +156,28 @@ static void sensors_main() {
                 my_printf("temperature %f pressure %f\n", res.temperature, res.pressure);
             }
             
-            uint8_t buf[2+2*3];
-            buf[0] = 0; // custom message type
-            buf[1] = 2; // barometer measurement
-            memcpy(buf+2, D1, 3);
-            memcpy(buf+5, D2, 3);
-            gps_write_packet(buf, sizeof(buf)); // might drop
+            memcpy(packet+2, D1, 3);
+            memcpy(packet+5, D2, 3);
         }
         
         for(uint8_t i = 0; i < imu_nCS_pins.size(); i++) {
             Pin & pin = imu_nCS_pins[i];
             
             uint8_t buf[14];
-            send_command(pin, 0x80 + 0x3B, sizeof(buf), buf);
+            send_command(pin, 0x80 + 59, sizeof(buf), buf);
             
-            my_printf("imu%i ", i);
-            for(uint8_t j = 0; j < sizeof(buf); j++) {
-                my_printf("%02X", buf[j]);
+            if(false) {
+                my_printf("imu%i ", i);
+                for(uint8_t j = 0; j < sizeof(buf); j++) {
+                    my_printf("%02X", buf[j]);
+                }
+                my_printf("\n");
             }
-            my_printf("\n");
+            
+            memcpy(packet + 2 + 2*3 + i * 14, buf, 14);
         }
+        
+        gps_write_packet(packet, sizeof(packet)); // might drop
         
         measurement_time += measurement_period;
     }
