@@ -19,8 +19,14 @@
 
 BINARY = main
 
+ifndef DEVICE
+	$(error need DEVICE)
+endif
+
+BUILDDIR = build_$(DEVICE)/
+
 CFLAGS += -std=c99 -ggdb
-CXXFLAGS += -std=c++11 -ggdb -Wno-unused-parameter
+CXXFLAGS += -std=c++11 -ggdb -Wno-unused-parameter -DSYLPHASE_GPSLOG_$(DEVICE)
 LDSCRIPT = STM32F103CBT7.ld
 LDFLAGS += -ggdb
 
@@ -47,10 +53,6 @@ BMP_PORT	?=
 #STLINK_PORT	?= :4242
 
 # Be silent per default, but 'make V=1' will show all compiler calls.
-ifneq ($(V),1)
-Q		:= @
-NULL		:= 2>/dev/null
-endif
 
 ###############################################################################
 # Executables
@@ -71,7 +73,7 @@ STFLASH		= $(shell which st-flash)
 ###############################################################################
 # Source files
 
-OBJS		+= build/$(BINARY).o build/time.o build/hardware.o build/serial.o build/gps.o build/sdcard.o build/ff/ff.o build/ff/option/unicode.o build/coroutine.o build/sensors.o build/reactor.o build/scheduler.o build/misc.o
+OBJS		+= $(BUILDDIR)$(BINARY).o $(BUILDDIR)time.o $(BUILDDIR)hardware.o $(BUILDDIR)serial.o $(BUILDDIR)gps.o $(BUILDDIR)sdcard.o $(BUILDDIR)ff/ff.o $(BUILDDIR)ff/option/unicode.o $(BUILDDIR)coroutine.o $(BUILDDIR)sensors.o $(BUILDDIR)reactor.o $(BUILDDIR)scheduler.o $(BUILDDIR)misc.o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)
@@ -147,66 +149,66 @@ LDLIBS		+= -Wl,--start-group -lc -lnosys -lm
 
 all: elf
 
-elf: build/$(BINARY).elf
-bin: build/$(BINARY).bin
-hex: build/$(BINARY).hex
-srec: build/$(BINARY).srec
-list: build/$(BINARY).list
+elf: $(BUILDDIR)$(BINARY).elf
+bin: $(BUILDDIR)$(BINARY).bin
+hex: $(BUILDDIR)$(BINARY).hex
+srec: $(BUILDDIR)$(BINARY).srec
+list: $(BUILDDIR)$(BINARY).list
 
-images: $(BINARY).images
-flash: $(BINARY).flash
+images: $(BUILDDIR)$(BINARY).images
+flash: $(BUILDDIR)$(BINARY).stlink-flash
 
-build/%.images: build/%.bin build/%.hex build/%.srec build/%.list build/%.map
+$(BUILDDIR)%.images: $(BUILDDIR)%.bin $(BUILDDIR)%.hex $(BUILDDIR)%.srec $(BUILDDIR)%.list $(BUILDDIR)%.map
 	@#printf "*** $* images generated ***\n"
 
-build/%.bin: build/%.elf
-	@mkdir -p build
+$(BUILDDIR)%.bin: $(BUILDDIR)%.elf
+	@mkdir -p $(BUILDDIR)
 	@#printf "  OBJCOPY $(*).bin\n"
-	$(Q)$(OBJCOPY) -Obinary build/$(*).elf build/$(*).bin
+	$(OBJCOPY) -Obinary $(BUILDDIR)$(*).elf $(BUILDDIR)$(*).bin
 
-build/%.hex: build/%.elf
-	@mkdir -p build
+$(BUILDDIR)%.hex: $(BUILDDIR)%.elf
+	@mkdir -p $(BUILDDIR)
 	@#printf "  OBJCOPY $(*).hex\n"
-	$(Q)$(OBJCOPY) -Oihex build/$(*).elf build/$(*).hex
+	$(OBJCOPY) -Oihex $(BUILDDIR)$(*).elf $(BUILDDIR)$(*).hex
 
-build/%.srec: build/%.elf
-	@mkdir -p build
+$(BUILDDIR)%.srec: $(BUILDDIR)%.elf
+	@mkdir -p $(BUILDDIR)
 	@#printf "  OBJCOPY $(*).srec\n"
-	$(Q)$(OBJCOPY) -Osrec build/$(*).elf build/$(*).srec
+	$(OBJCOPY) -Osrec $(BUILDDIR)$(*).elf $(BUILDDIR)$(*).srec
 
-build/%.list: build/%.elf
-	@mkdir -p build
+$(BUILDDIR)%.list: $(BUILDDIR)%.elf
+	@mkdir -p $(BUILDDIR)
 	@#printf "  OBJDUMP $(*).list\n"
-	$(Q)$(OBJDUMP) -S build/$(*).elf > build/$(*).list
+	$(OBJDUMP) -S $(BUILDDIR)$(*).elf > $(BUILDDIR)$(*).list
 
-build/%.elf build/%.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
-	@mkdir -p build
+$(BUILDDIR)%.elf $(BUILDDIR)%.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
+	@mkdir -p $(BUILDDIR)
 	@#printf "  LD      $(*).elf\n"
-	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o build/$(*).elf
+	$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o $(BUILDDIR)$(*).elf
 
-build/%.o: src/%.c
+$(BUILDDIR)%.o: src/%.c
 	@mkdir -p $(dir $@)
 	@#printf "  CC      $(*).c\n"
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).c
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILDDIR)$(*).o -c src/$(*).c
 
-build/%.o: src/%.cxx
+$(BUILDDIR)%.o: src/%.cxx
 	@mkdir -p $(dir $@)
 	@#printf "  CXX     $(*).cxx\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cxx
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILDDIR)$(*).o -c src/$(*).cxx
 
-build/%.o: src/%.cpp
+$(BUILDDIR)%.o: src/%.cpp
 	@mkdir -p $(dir $@)
 	@#printf "  CXX     $(*).cpp\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o build/$(*).o -c src/$(*).cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILDDIR)$(*).o -c src/$(*).cpp
 
 clean:
 	@#printf "  CLEAN\n"
-	rm -fr build
+	rm -fr $(BUILDDIR)
 
 
 %.stlink-flash: %.bin
 	@printf "  FLASH  $<\n"
-	$(Q)$(STFLASH) write $(*).bin 0x8000000
+	$(STFLASH) write $(*).bin 0x8000000
 
 ifeq ($(STLINK_PORT),)
 ifeq ($(BMP_PORT),)
@@ -214,7 +216,7 @@ ifeq ($(OOCD_SERIAL),)
 %.flash: %.hex
 	@printf "  FLASH   $<\n"
 	@# IMPORTANT: Don't use "resume", only "reset" will work correctly!
-	$(Q)$(OOCD) -f interface/$(OOCD_INTERFACE).cfg \
+	$(OOCD) -f interface/$(OOCD_INTERFACE).cfg \
 		    -f board/$(OOCD_BOARD).cfg \
 		    -c "init" -c "reset init" \
 		    -c "flash write_image erase $(*).hex" \
@@ -224,7 +226,7 @@ else
 %.flash: %.hex
 	@printf "  FLASH   $<\n"
 	@# IMPORTANT: Don't use "resume", only "reset" will work correctly!
-	$(Q)$(OOCD) -f interface/$(OOCD_INTERFACE).cfg \
+	$(OOCD) -f interface/$(OOCD_INTERFACE).cfg \
 		    -f board/$(OOCD_BOARD).cfg \
 		    -c "ft2232_serial $(OOCD_SERIAL)" \
 		    -c "init" -c "reset init" \
@@ -235,7 +237,7 @@ endif
 else
 %.flash: %.elf
 	@printf "  GDB   $(*).elf (flash)\n"
-	$(Q)$(GDB) --batch \
+	$(GDB) --batch \
 		   -ex 'target extended-remote $(BMP_PORT)' \
 		   -x $(SCRIPT_DIR)/black_magic_probe_flash.scr \
 		   $(*).elf
@@ -243,7 +245,7 @@ endif
 else
 %.flash: %.elf
 	@printf "  GDB   $(*).elf (flash)\n"
-	$(Q)$(GDB) --batch \
+	$(GDB) --batch \
 		   -ex 'target extended-remote $(STLINK_PORT)' \
 		   -x $(SCRIPT_DIR)/stlink_flash.scr \
 		   $(*).elf

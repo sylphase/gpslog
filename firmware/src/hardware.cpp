@@ -61,7 +61,13 @@ bool hardware_get_battery_really_dead(float vdd) {
 
 void poweroff() {
     { CriticalSection cs; // don't do anything else
-        gpio_set(GPIOB, GPIO1);
+        #if defined SYLPHASE_GPSLOG_2A
+            gpio_set(GPIOB, GPIO1);
+        #elif defined SYLPHASE_GPSLOG_2C
+            gpio_clear(GPIOB, GPIO1);
+        #else
+            #error
+        #endif
         while(true) { }
     }
 }
@@ -99,7 +105,13 @@ void set_led_override_off(bool override_off) {
 
 void hardware_init() {
     // vcc3_3_enable_pulldown
-    gpio_clear(GPIOB, GPIO1);
+    #if defined SYLPHASE_GPSLOG_2A
+        gpio_clear(GPIOB, GPIO1);
+    #elif defined SYLPHASE_GPSLOG_2C
+        gpio_set(GPIOB, GPIO1);
+    #else
+        #error
+    #endif
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
     
     adc_setup();

@@ -73,6 +73,14 @@ auto main_function = []() {
     
     set_led_color(10, 0, 0); // draws current, decreasing the battery voltage slightly, purposely done before measuring
     
+    #ifdef SYLPHASE_GPSLOG_2C
+        while(true) {
+            busy_delay(0.01);
+        }
+    #else
+        #error hi
+    #endif
+    
     serial_setup();
     scheduler_init();
     
