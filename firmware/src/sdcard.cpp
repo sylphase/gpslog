@@ -188,6 +188,7 @@ void sdcard_init() {
     
     spi_enable(SPI1);
     
+    nvic_clear_pending_irq(NVIC_SPI1_IRQ);
     nvic_enable_irq(NVIC_SPI1_IRQ);
     spi_enable_rx_buffer_not_empty_interrupt(SPI1);
     

@@ -32,7 +32,9 @@ class TimeTracker(object):
         else:
             self._last_time += self._nominal_dt
             error = measured - self._last_time
-            assert abs(error) < 1
+            if abs(error) > 1:
+                print 'time jump'
+                self._last_time = measured
             self._last_time += .01 * error
         
         return self._last_time
@@ -62,6 +64,71 @@ def packet_handler():
     altitude_time_tracker = TimeTracker(1/10)
     ahrs_time_tracker = TimeTracker(1/10)
     
+    def handle_baro(data):
+        assert len(data) == 6
+        dd = map(ord, data)
+        
+        D1 = (dd[0]<<16)|(dd[1]<<8)|dd[2]
+        D2 = (dd[3]<<16)|(dd[4]<<8)|dd[5]
+        
+        dT = D2 - prom[5] * 2**8
+        
+        TEMP = 2000 + dT * prom[6] / 2**23
+        OFF = prom[2] * 2**16 + (prom[4] * dT) / 2**7
+        SENS = prom[1] * 2**15 + (prom[3] * dT) / 2**8
+        
+        if TEMP < 2000:
+            T2 = dT**2 / 2**31
+            OFF2 = 5 * (TEMP - 2000)**2 / 2**1
+            SENS2 = 5 * (TEMP - 2000)**2 / 2**2
+            if TEMP < -1500:
+                OFF2 = OFF2 + 7 * (TEMP + 1500)**2
+                SENS2 = SENS2 + 11 * (TEMP + 1500)**2 / 2**1
+        else:
+            T2 = 0
+            OFF2 = 0
+            SENS2 = 0
+        TEMP = TEMP - T2
+        OFF = OFF - OFF2
+        SENS = SENS - SENS2
+        
+        P = (D1 * SENS / 2**21 - OFF) / 2**15
+        
+        temperature = TEMP * .01
+        pressure = P
+        
+        p0 = 101325
+        L = 0.0065
+        T_0 = 288.15
+        g = 9.80665
+        M = 0.0289644
+        R = 8.31447
+        
+        h = (1 - pow(pressure / p0, R*L/g/M))/L*T_0
+        
+        #print temperature, pressure, h
+        
+        t = altitude_time_tracker.update(last_gps_time)
+        if t is not None:
+            i = bisect.bisect_left(pos, (t,))
+            if i == 0:
+                gpsh = ''
+            elif i == len(pos):
+                gpsh = ''
+            else:
+                assert pos[i-1][0] <= t <= pos[i][0], (i, len(pos), t, pos[i][0], pos[i+1][0])
+                gpsh = pos[i-1][1][2]
+            altitude_writer.writerow([t, temperature, pressure, h, gpsh])
+    
+    def handle_mpu(i, data):
+        accx, accy, accz, temp, gyrox, gyroy, gyroz = struct.unpack('>7h', data);
+        acc = accx, accy, accz
+        acc = [a/16384 * 9.80665 for a in acc]
+        temp = temp/333.87 + 21
+        gyro = gyrox, gyroy, gyroz
+        gyro = [g/131 * math.pi/180 for g in gyro]
+        print 'MPU', i, acc, temp, gyro
+    
     with open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb') as altitude_file, \
         open(sys.argv[1].rsplit('.', 1)[0] + '_ahrs.csv', 'wb') as ahrs_file, \
         open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb') as binr_file:
@@ -82,59 +149,7 @@ def packet_handler():
                     prom = struct.unpack('>8H', payload[1:])
                 elif ord(payload[0]) == 2: # barometer measurement
                     assert len(payload) == 7
-                    dd = map(ord, payload[1:])
-                    
-                    D1 = (dd[0]<<16)|(dd[1]<<8)|dd[2]
-                    D2 = (dd[3]<<16)|(dd[4]<<8)|dd[5]
-                    
-                    dT = D2 - prom[5] * 2**8
-                    
-                    TEMP = 2000 + dT * prom[6] / 2**23
-                    OFF = prom[2] * 2**16 + (prom[4] * dT) / 2**7
-                    SENS = prom[1] * 2**15 + (prom[3] * dT) / 2**8
-                    
-                    if TEMP < 2000:
-                        T2 = dT**2 / 2**31
-                        OFF2 = 5 * (TEMP - 2000)**2 / 2**1
-                        SENS2 = 5 * (TEMP - 2000)**2 / 2**2
-                        if TEMP < -1500:
-                            OFF2 = OFF2 + 7 * (TEMP + 1500)**2
-                            SENS2 = SENS2 + 11 * (TEMP + 1500)**2 / 2**1
-                    else:
-                        T2 = 0
-                        OFF2 = 0
-                        SENS2 = 0
-                    TEMP = TEMP - T2
-                    OFF = OFF - OFF2
-                    SENS = SENS - SENS2
-                    
-                    P = (D1 * SENS / 2**21 - OFF) / 2**15
-                    
-                    temperature = TEMP * .01
-                    pressure = P
-                    
-                    p0 = 101325
-                    L = 0.0065
-                    T_0 = 288.15
-                    g = 9.80665
-                    M = 0.0289644
-                    R = 8.31447
-                    
-                    h = (1 - pow(pressure / p0, R*L/g/M))/L*T_0
-                    
-                    #print temperature, pressure, h
-                    
-                    t = altitude_time_tracker.update(last_gps_time)
-                    if t is not None:
-                        i = bisect.bisect_left(pos, (t,))
-                        if i == 0:
-                            gpsh = ''
-                        elif i == len(pos):
-                            gpsh = ''
-                        else:
-                            assert pos[i-1][0] <= t <= pos[i][0], (i, len(pos), t, pos[i][0], pos[i+1][0])
-                            gpsh = pos[i-1][1][2]
-                        altitude_writer.writerow([t, temperature, pressure, h, gpsh])
+                    handle_baro(payload[1:])
                 elif ord(payload[0]) == 3: # ahrs measurement
                     #print payload[1:].encode('hex')
                     data = payload[1:]
@@ -142,6 +157,11 @@ def packet_handler():
                     t = ahrs_time_tracker.update(last_gps_time)
                     if abs(norm(quat_wxyz) - 1) <= .001 and t is not None:
                         ahrs_writer.writerow([t, quat_wxyz[0], quat_wxyz[1], quat_wxyz[2], quat_wxyz[3]])
+                elif ord(payload[0]) == 4: # baro + 4x IMU
+                    assert len(payload) == 1 + 6 + 4 * 14, len(payload)
+                    handle_baro(payload[1:7])
+                    for i in xrange(4):
+                        handle_mpu(i, payload[7+i*14:7+i*14+14])
                 else:
                     assert False, ord(payload[0])
             elif id_ == 0xF5: # raw GPS measurements
@@ -153,7 +173,10 @@ def packet_handler():
                 
                 res = payload[:27]
                 
-                assert len(payload[27:]) % 30 == 0
+                if len(payload[27:]) % 30 != 0:
+                    print 'misshapen'
+                    continue
+                assert len(payload[27:]) % 30 == 0, len(payload[27:])
                 sats = []
                 for i in xrange(len(payload[27:]) // 30):
                     d = payload[27+30*i:27+30*i+30]

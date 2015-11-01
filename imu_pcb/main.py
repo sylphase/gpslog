@@ -77,5 +77,5 @@ def main():
 
 desc = main()
 kicad.generate(desc, 'kicad')
-bom.generate(desc, 'bom', quantity=6, add_spares=True)
+bom.generate(desc, 'bom', quantity=10, add_spares=False)
 #netlist_graph2.generate(desc, 'netlist.svg')
