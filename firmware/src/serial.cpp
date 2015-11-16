@@ -12,6 +12,7 @@
 #include "hardware.h"
 #include "coroutine.h"
 #include "reactor.h"
+#include "misc.h"
 
 #if defined SYLPHASE_GPSLOG_2A
     #define USART_NUM 3
@@ -28,11 +29,6 @@
 #else
     #error
 #endif
-
-#define CAT2(a, b) CAT2_(a, b)
-#define CAT2_(a, b) a ## b
-#define CAT3(a, b, c) CAT3_(a, b, c)
-#define CAT3_(a, b, c) a ## b ## c
 
 static RunnerBase const *CAT3(usart,USART_NUM,_interrupt_callback) = nullptr;
 

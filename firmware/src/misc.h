@@ -32,4 +32,9 @@ public:
     }
 };
 
+#define CAT2(a, b) CAT2_(a, b)
+#define CAT2_(a, b) a ## b
+#define CAT3(a, b, c) CAT3_(a, b, c)
+#define CAT3_(a, b, c) a ## b ## c
+
 #endif
