@@ -20,7 +20,7 @@
 BINARY = main
 
 ifndef DEVICE
-	$(error need DEVICE)
+	XXX := $(error need DEVICE)
 endif
 
 BUILDDIR = build_$(DEVICE)/
