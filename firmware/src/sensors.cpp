@@ -147,7 +147,7 @@ static void sensors_main() {
             yield_delay(9.04e-3);
             uint8_t D2[3]; send_command(baro_nCS_pin, 0x00, 3, D2); // ADC Read
             
-            if(true) {
+            if(false) {
                 Result res; decode(prom,
                     (D1[0] << 16) | (D1[1] << 8) | D1[2],
                     (D2[0] << 16) | (D2[1] << 8) | D2[2],
@@ -166,7 +166,7 @@ static void sensors_main() {
             uint8_t buf[14];
             send_command(pin, 0x80 + 59, sizeof(buf), buf);
             
-            if(true) {
+            if(false) {
                 my_printf("imu%i ", i);
                 for(uint8_t j = 0; j < sizeof(buf); j++) {
                     my_printf("%02X", buf[j]);
