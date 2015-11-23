@@ -9,7 +9,6 @@
 #include <libopencm3/cm3/cortex.h>
 
 #include "serial.h"
-#include "hardware.h"
 #include "coroutine.h"
 #include "reactor.h"
 #include "misc.h"

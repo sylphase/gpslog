@@ -14,7 +14,6 @@
 #include "gps.h"
 
 #include "time.h"
-#include "hardware.h"
 #include "sdcard.h"
 #include "main.h"
 #include "reactor.h"

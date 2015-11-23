@@ -149,4 +149,13 @@ void hardware_init() {
     gpio_set(GPIOA, GPIO7);
     gpio_set(GPIOB, GPIO0);
     set_led_override_off(false);
+
+}
+void set_external_led(bool on) {
+    if(on) {
+        gpio_set(GPIOC, GPIO13);
+        gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+    } else {
+        gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO13);
+    }
 }

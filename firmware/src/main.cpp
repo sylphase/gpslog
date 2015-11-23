@@ -26,6 +26,7 @@ static void clock_setup(void) {
     
     rcc_periph_reset_pulse(RST_GPIOA); rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_reset_pulse(RST_GPIOB); rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_reset_pulse(RST_GPIOC); rcc_periph_clock_enable(RCC_GPIOC);
     rcc_periph_reset_pulse(RST_AFIO); rcc_periph_clock_enable(RCC_AFIO);
 }
 
@@ -94,6 +95,7 @@ auto main_function = []() {
     my_printf("init done, hello world!\n");
     my_printf("waiting for date from gps...\n");
     set_led_color(0, 0, 1); // blue
+    
     while(!got_filename) yield_delay(0.1);
     my_printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
@@ -101,6 +103,10 @@ auto main_function = []() {
     gps_start_logging();
     
     #ifdef SYLPHASE_GPSLOG_2A
+        set_external_led(true);
+        yield_delay(1);
+        set_external_led(false);
+        
         sensors_init();
     #endif
     
