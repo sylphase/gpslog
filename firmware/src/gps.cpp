@@ -212,7 +212,7 @@ start:
             std::tm const * tm = gmtime(&t);
             assert(tm);
             char date[100];
-            strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
+            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.binr", tm);
             my_printf("time: %s\n", date);
             got_date_string(date);
             called_got_date_string = true;
@@ -327,7 +327,7 @@ start:
             std::tm const * tm = gmtime(&t);
             assert(tm);
             char date[100];
-            strftime(date, sizeof(date), "%Y%m%d-%H%M%S", tm);
+            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.skytraq", tm);
             my_printf("time: %s\n", date);
             got_date_string(date);
             called_got_date_string = true;
