@@ -147,7 +147,7 @@ LDLIBS		+= -Wl,--start-group -lc -lnosys -lm
 .SECONDEXPANSION:
 .SECONDARY:
 
-all: elf
+all: bin
 
 elf: $(BUILDDIR)$(BINARY).elf
 bin: $(BUILDDIR)$(BINARY).bin

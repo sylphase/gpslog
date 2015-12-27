@@ -212,7 +212,7 @@ start:
             std::tm const * tm = gmtime(&t);
             assert(tm);
             char date[100];
-            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.binr", tm);
+            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.binr2", tm);
             my_printf("time: %s\n", date);
             got_date_string(date);
             called_got_date_string = true;
@@ -366,7 +366,10 @@ void gps_setup(void) {
     
     #if defined NV08C_CSM
         send_command(0x0e, 0, nullptr); // disable all
+        send_command(0xd7, 5, (uint8_t const []){0x01, 0x00, 0x00, 0x20, 0x41}); // 10 m/s^2 max accel
         send_command(0xd7, 2, (uint8_t const []){0x02, 10}); // 10 Hz navigation rate
+        send_command(0xd7, 3, (uint8_t const []){0x03, 1, 0}); // 1 s pseudorang smoothing interval
+        send_command(0xd7, 3, (uint8_t const []){0x07, 0b100, 0}); // no RAIM
         send_command(0x27, 1, (uint8_t const []){1}); // PVT
         send_command(0x2a, 1, (uint8_t const []){1}); // ionospheric
         send_command(0x5c, 1, (uint8_t const []){1}); // atmospheric corrections
