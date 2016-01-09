@@ -14,6 +14,7 @@
 #include "misc.h"
 #include "gps.h"
 #include "time.h"
+#include "hardware.h"
 
 #include "sensors.h"
 
@@ -177,7 +178,9 @@ static void sensors_main() {
             memcpy(packet + 2 + 2*3 + i * 14, buf, 14);
         }
         
-        gps_write_packet(packet, sizeof(packet)); // might drop
+        if(!gps_write_packet(packet, sizeof(packet))) {
+            set_led_color(1, 1, 0);
+        }
         
         measurement_time += measurement_period;
     }

@@ -99,20 +99,29 @@ auto main_function = []() {
     my_printf("got date filename: %s! opening\n", filename);
     sdcard_open(filename);
     
+    #ifdef SYLPHASE_GPSLOG_2A
+        sensors_init();
+    #endif
+    
+    sdcard_poll();
+    sdcard_poll();
     gps_start_logging();
     
     #ifdef SYLPHASE_GPSLOG_2A
         set_external_led(true);
-        yield_delay(1);
-        set_external_led(false);
-        
-        sensors_init();
+        uint64_t led_off_time = time_get_ticks() + 1 * time_get_ticks_per_second();
     #endif
     
     set_led_color(0, 1, 0);
     
     while(true) {
         sdcard_poll();
+        
+        #ifdef SYLPHASE_GPSLOG_2A
+            if(time_get_ticks() >= led_off_time) {
+                set_external_led(false);
+            }
+        #endif
         
         float vdd = measure_vdd();
         if(hardware_get_battery_really_dead(vdd)) {

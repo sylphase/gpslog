@@ -22,6 +22,7 @@
 #include "scheduler.h"
 #include "misc.h"
 #include "config.h"
+#include "hardware.h"
 
 #if defined SYLPHASE_GPSLOG_2A
     #define USART_NUM 1
@@ -202,7 +203,9 @@ start:
         my_printf("gps: success %i %i\n", packet[0], packet_pos);
         
         if(logging_enabled) {
-            gps_write_packet(packet, packet_pos); // silently drop if buffer is full
+            if(!gps_write_packet(packet, packet_pos)) { // indicate dropped packet by turning LED yellow
+                set_led_color(1, 1, 0);
+            }
         }
         
         if(packet[0] == 0xF5 && !called_got_date_string) {
@@ -315,7 +318,9 @@ start:
         my_printf("gps: success %i %i\n", packet[0], packet_length);
         
         if(logging_enabled) {
-            gps_write_packet(packet, packet_length); // silently drop if buffer is full
+            if(!gps_write_packet(packet, packet_length)) {
+                set_led_color(1, 1, 0);
+            }
         }
         
         if(packet[0] == 0xDF && !called_got_date_string && packet[2] >= 2) {
