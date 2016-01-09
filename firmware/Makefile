@@ -73,7 +73,7 @@ STFLASH		= $(shell which st-flash)
 ###############################################################################
 # Source files
 
-OBJS		+= $(BUILDDIR)$(BINARY).o $(BUILDDIR)time.o $(BUILDDIR)hardware.o $(BUILDDIR)serial.o $(BUILDDIR)gps.o $(BUILDDIR)sdcard.o $(BUILDDIR)ff/ff.o $(BUILDDIR)ff/option/unicode.o $(BUILDDIR)coroutine.o $(BUILDDIR)sensors.o $(BUILDDIR)reactor.o $(BUILDDIR)scheduler.o $(BUILDDIR)misc.o
+OBJS		+= $(BUILDDIR)$(BINARY).o $(BUILDDIR)time.o $(BUILDDIR)hardware.o $(BUILDDIR)serial.o $(BUILDDIR)gps.o $(BUILDDIR)sdcard.o $(BUILDDIR)ff/ff.o $(BUILDDIR)ff/option/unicode.o $(BUILDDIR)coroutine.o $(BUILDDIR)sensors.o $(BUILDDIR)reactor.o $(BUILDDIR)scheduler.o $(BUILDDIR)misc.o $(BUILDDIR)config.o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cmath>
 #include <utility>
+#include <array>
 
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/rcc.h>
@@ -20,6 +21,7 @@
 #include "coroutine.h"
 #include "scheduler.h"
 #include "misc.h"
+#include "config.h"
 
 #if defined SYLPHASE_GPSLOG_2A
     #define USART_NUM 1
@@ -367,14 +369,16 @@ void gps_setup(void) {
     #if defined NV08C_CSM
         send_command(0x0e, 0, nullptr); // disable all
         send_command(0xd7, 5, (uint8_t const []){0x01, 0x00, 0x00, 0x20, 0x41}); // 10 m/s^2 max accel
-        send_command(0xd7, 2, (uint8_t const []){0x02, 10}); // 10 Hz navigation rate
-        send_command(0xd7, 3, (uint8_t const []){0x03, 1, 0}); // 1 s pseudorang smoothing interval
+        int rate = config::get_int("rate");
+        assert(rate == 1 || rate == 2 || rate == 5 || rate == 10);
+        send_command(0xd7, 2, std::array<uint8_t, 2>{0x02, static_cast<uint8_t>(rate)}.begin()); // navigation rate
+        send_command(0xd7, 3, (uint8_t const []){0x03, 1, 0}); // 1 s pseudorange smoothing interval
         send_command(0xd7, 3, (uint8_t const []){0x07, 0b100, 0}); // no RAIM
         send_command(0x27, 1, (uint8_t const []){1}); // PVT
         send_command(0x2a, 1, (uint8_t const []){1}); // ionospheric
         send_command(0x5c, 1, (uint8_t const []){1}); // atmospheric corrections
         send_command(0xd5, 1, (uint8_t const []){1}); // bit information
-        send_command(0xf4, 1, (uint8_t const []){1}); // 10 Hz raw data
+        send_command(0xf4, 1, std::array<uint8_t, 1>{static_cast<uint8_t>(10/rate)}.begin()); // 10 Hz raw data
     #elif defined S1315F8_RAW
         send_command(3, (uint8_t const []){0x09,  2, 0}); // binary out
         send_command(3, (uint8_t const []){0x0E, 10, 0}); // position rate
