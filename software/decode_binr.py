@@ -295,7 +295,6 @@ def packet_handler():
 <coordinates>
 ''')
                         kml_wrote = False
-                        print 'yeup'
                 else:
                     pass # ignore all other standard BINR messages
                     #write_packet(binr_file, id_, payload)
