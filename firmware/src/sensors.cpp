@@ -44,11 +44,11 @@ public:
     void clear() { gpio_clear(gpioport_, gpio_); }
 };
 
-static void send_command(Pin & nCS_pin, uint8_t cmd, uint32_t read=0, uint8_t * dest=nullptr) {
+static void send_command(Pin & nCS_pin, uint8_t cmd, uint32_t length=0, uint8_t * buf=nullptr) {
     nCS_pin.clear();
     SPI_DR(SPI2) = cmd; yield();
-    while(read--) {
-        SPI_DR(SPI2) = 0; yield(); *dest++ = SPI_DR(SPI2);
+    while(length--) {
+        SPI_DR(SPI2) = *buf; yield(); *buf++ = SPI_DR(SPI2);
     }
     nCS_pin.set();
 }
@@ -97,10 +97,60 @@ void decode(uint16_t prom[8], uint32_t D1, uint32_t D2, Result & res) {
     res.pressure = (D1*SENS/pow(2, 21) - OFF)/pow(2, 15);
 }
 
+bool const just_pause = true;
+
+void imu_mag_write(Pin & nCS_pin, uint8_t addr, uint8_t value) {
+    send_command(nCS_pin, 49, 1, std::array<uint8_t, 1>{0x0C}.begin());
+    send_command(nCS_pin, 50, 1, std::array<uint8_t, 1>{addr}.begin());
+    send_command(nCS_pin, 51, 1, std::array<uint8_t, 1>{value}.begin());
+    send_command(nCS_pin, 52, 1, std::array<uint8_t, 1>{0x80}.begin());
+    if(just_pause) {
+        yield_delay(50e-3);
+    } else {
+        while(true) {
+            uint8_t buf;
+            send_command(nCS_pin, 0x80|52, 1, &buf);
+            if(!(buf & 0x80)) break;
+        }
+    }
+}
+
+uint8_t imu_mag_read(Pin & nCS_pin, uint8_t addr) {
+    send_command(nCS_pin, 49, 1, std::array<uint8_t, 1>{0x80|0x0C}.begin()); // write ADDR
+    send_command(nCS_pin, 50, 1, std::array<uint8_t, 1>{addr}.begin()); // write REG
+    send_command(nCS_pin, 51, 1, std::array<uint8_t, 1>{0}.begin()); // write DO
+    send_command(nCS_pin, 52, 1, std::array<uint8_t, 1>{0x80}.begin());
+    if(just_pause) {
+        yield_delay(50e-3);
+    } else {
+        while(true) {
+            uint8_t buf = 0;
+            send_command(nCS_pin, 0x80|52, 1, &buf);
+            if(!(buf & 0x80)) break;
+        }
+    }
+    {
+        uint8_t buf;
+        send_command(nCS_pin, 0x80|53, 1, &buf);
+        return buf;
+    }
+}
+
 static void sensors_main() {
-    //for(Pin & pin : imu_nCS_pins) {
-    //    aaa
-    //}
+    my_printf("start\n");
+    for(Pin & pin : imu_nCS_pins) {
+        send_command(pin, 107, 1, std::array<uint8_t, 1>{0x80}.begin()); // PWR_MGMT_1.H_RESET = 1
+        yield_delay(50e-3);
+        send_command(pin, 107, 1, std::array<uint8_t, 1>{0x01}.begin()); // PWR_MGMT_1.CLKSEL = 1
+        send_command(pin, 106, 1, std::array<uint8_t, 1>{0x30}.begin()); // USER_CTRL.I2C_MST_EN = 1, USER_CTRL.I2C_IF_DIS = 1
+        imu_mag_write(pin, 0x0B, 1); // reset
+        yield_delay(50e-3);
+        imu_mag_write(pin, 0x0A, 0b10110); // 16 bit output, continuous measurement mode 2
+        my_printf("WIA: %i\n", imu_mag_read(pin, 0x00));
+        send_command(pin, 37, 1, std::array<uint8_t, 1>{0x80|0x0C}.begin()); // write ADDR
+        send_command(pin, 38, 1, std::array<uint8_t, 1>{0x02}.begin()); // write REG
+        send_command(pin, 39, 1, std::array<uint8_t, 1>{0x80 | 8}.begin()); // write CTRL
+    }
     
     //assert(rcc_apb1_frequency / 2 <= 20e6);
     //spi_set_baudrate_prescaler(SPI1, 0);    
@@ -136,7 +186,7 @@ static void sensors_main() {
     while(true) {
         yield_until(measurement_time);
         
-        uint8_t packet[2+2*3+4*14];
+        uint8_t packet[2+2*3+4*(14+8)];
         packet[0] = 0; // custom message type
         packet[1] = 4; // barometer+4xIMU measurement
         
@@ -164,7 +214,7 @@ static void sensors_main() {
         for(uint8_t i = 0; i < imu_nCS_pins.size(); i++) {
             Pin & pin = imu_nCS_pins[i];
             
-            uint8_t buf[14];
+            uint8_t buf[14+8];
             send_command(pin, 0x80 + 59, sizeof(buf), buf);
             
             if(false) {
@@ -175,7 +225,7 @@ static void sensors_main() {
                 my_printf("\n");
             }
             
-            memcpy(packet + 2 + 2*3 + i * 14, buf, 14);
+            memcpy(packet + 2 + 2*3 + i * (14 + 8), buf, sizeof(buf));
         }
         
         if(!gps_write_packet(packet, sizeof(packet))) {
