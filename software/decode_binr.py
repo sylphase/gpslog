@@ -62,7 +62,6 @@ def write_packet(f, id_, msg):
 
 def packet_handler():
     altitude_time_tracker = TimeTracker(1/10)
-    ahrs_time_tracker = TimeTracker(1/10)
     
     def handle_baro(data):
         assert len(data) == 6
@@ -130,16 +129,12 @@ def packet_handler():
         #print 'MPU', i, acc, temp, gyro
     
     with open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb') as altitude_file, \
-        open(sys.argv[1].rsplit('.', 1)[0] + '_ahrs.csv', 'wb') as ahrs_file, \
         open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb') as binr_file, \
         open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.csv', 'wb') as pos_file, \
         open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.kml', 'wb') as kml_file:
         
         altitude_writer = csv.writer(altitude_file)
         altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m', 'GPS height/m'])
-        
-        ahrs_writer = csv.writer(ahrs_file)
-        ahrs_writer.writerow(['GPS Time/s', 'Quaternion w', 'Quaternion x', 'Quaternion y', 'Quaternion z'])
         
         pos_writer = csv.writer(pos_file)
         pos_writer.writerow(['GPS Time/s', 'Latitude/deg', 'Longitude/deg', 'Height/m'])
@@ -212,16 +207,6 @@ def packet_handler():
                 if id_ == 0:
                     if ord(payload[0]) == 1: # barometer prom
                         prom = struct.unpack('>8H', payload[1:])
-                    elif ord(payload[0]) == 2: # barometer measurement
-                        assert len(payload) == 7
-                        handle_baro(payload[1:])
-                    elif ord(payload[0]) == 3: # ahrs measurement
-                        #print payload[1:].encode('hex')
-                        data = payload[1:]
-                        quat_wxyz = [x*2**-14 for x in struct.unpack('<4h', data[0x20-0x8:0x20-0x8+8])]
-                        t = ahrs_time_tracker.update(last_gps_time)
-                        if abs(norm(quat_wxyz) - 1) <= .001 and t is not None:
-                            ahrs_writer.writerow([t, quat_wxyz[0], quat_wxyz[1], quat_wxyz[2], quat_wxyz[3]])
                     elif ord(payload[0]) == 4: # baro + 4x IMU
                         assert len(payload) == 1 + 6 + 4 * 14, len(payload)
                         handle_baro(payload[1:7])
