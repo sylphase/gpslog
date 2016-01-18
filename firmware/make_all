@@ -1,0 +1,6 @@
+#!/bin/sh -xe
+make DEVICE=2A
+mkdir -p out
+cp build_2A/main.bin out/2A_`git describe --always`.bin
+make DEVICE=2C
+cp build_2C/main.bin out/2C_`git describe --always`.bin
