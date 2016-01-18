@@ -203,7 +203,7 @@ start:
         my_printf("gps: success %i %i\n", packet[0], packet_pos);
         
         if(logging_enabled) {
-            if(!gps_write_packet(packet, packet_pos)) { // indicate dropped packet by turning LED yellow
+            if(!gps_write_stamped_packet(packet, packet_pos)) { // indicate dropped packet by turning LED yellow
                 set_led_color(1, 1, 0);
             }
         }
@@ -217,7 +217,7 @@ start:
             std::tm const * tm = gmtime(&t);
             assert(tm);
             char date[100];
-            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.binr2", tm);
+            strftime(date, sizeof(date), "%Y%m%d-%H%M%S.binr3", tm);
             my_printf("time: %s\n", date);
             got_date_string(date);
             called_got_date_string = true;
@@ -318,7 +318,7 @@ start:
         my_printf("gps: success %i %i\n", packet[0], packet_length);
         
         if(logging_enabled) {
-            if(!gps_write_packet(packet, packet_length)) {
+            if(!gps_write_stamped_packet(packet, packet_length)) {
                 set_led_color(1, 1, 0);
             }
         }
@@ -345,6 +345,16 @@ start:
 #else
     #error
 #endif
+
+bool gps_write_stamped_packet(uint8_t const * data, uint32_t length) {
+    uint8_t packet[2+8];
+    packet[0] = 0; // custom message type
+    packet[1] = 5; // timestamp
+    uint64_t time_us = time_get_ticks() * 1000000 / time_get_ticks_per_second();
+    memcpy(packet+2, &time_us, 8);
+    if(!gps_write_packet(packet, sizeof(packet))) return false;
+    return gps_write_packet(data, length);
+}
 
 static Coroutine<3072> gps_coroutine;
 void gps_setup(void) {

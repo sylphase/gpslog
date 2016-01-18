@@ -11,33 +11,24 @@ import calendar
 import bisect
 
 class TimeTracker(object):
-    def __init__(self, nominal_dt):
-        self._nominal_dt = nominal_dt
-        
-        self._countdown = 10
-        self._last_time = None
+    def __init__(self):
+        self._offset = None
     
-    def update(self, last_gps_time):
-        if last_gps_time is None:
-            return
+    def update(self, gps_time, device_time):
+        offset = gps_time - device_time
         
-        if self._countdown:
-            self._countdown -= 1
+        if self._offset is None:
+            self._offset = offset
+        
+        if abs(offset - self._offset) > 1:
+            print 'time jump'
+        
+        self._offset = .99 * self._offset + .01 * offset
+    
+    def get(self, device_time):
+        if self._offset is None:
             return None
-        
-        measured = last_gps_time + 1/10 / 2
-        
-        if self._last_time is None:
-            self._last_time = measured
-        else:
-            self._last_time += self._nominal_dt
-            error = measured - self._last_time
-            if abs(error) > 1:
-                print 'time jump'
-                self._last_time = measured
-            self._last_time += .01 * error
-        
-        return self._last_time
+        return self._offset + device_time
 
 def norm(xs):
     return math.sqrt(sum(x**2 for x in xs))
@@ -61,9 +52,9 @@ def write_packet(f, id_, msg):
     f.write(''.join(res))
 
 def packet_handler():
-    altitude_time_tracker = TimeTracker(1/10)
+    time_tracker = TimeTracker()
     
-    def handle_baro(data):
+    def handle_baro(ts, data):
         assert len(data) == 6
         dd = map(ord, data)
         
@@ -107,7 +98,7 @@ def packet_handler():
         
         #print temperature, pressure, h
         
-        t = altitude_time_tracker.update(last_gps_time)
+        t = time_tracker.get(ts)
         if t is not None:
             i = bisect.bisect_left(pos, (t,))
             if i == 0:
@@ -119,27 +110,39 @@ def packet_handler():
                 gpsh = pos[i-1][1][2]
             altitude_writer.writerow([t, temperature, pressure, h, gpsh])
     
-    def handle_mpu(i, data):
-        accx, accy, accz, temp, gyrox, gyroy, gyroz = struct.unpack('>7h', data);
+    def handle_mpu(ts, i, data):
+        if data.encode('hex') == 'ffffffffffffffffffffffffffffffffffffffffffff': return
+        t = time_tracker.get(ts)
+        accx, accy, accz, temp, gyrox, gyroy, gyroz, mag_st1, magx, magy, magz, mag_st2 = struct.unpack('>7hB3hB', data);
         acc = accx, accy, accz
         acc = [a/16384 * 9.80665 for a in acc]
         temp = temp/333.87 + 21
         gyro = gyrox, gyroy, gyroz
         gyro = [g/131 * math.pi/180 for g in gyro]
-        #print 'MPU', i, acc, temp, gyro
+        mag = magx, magy, magz
+        mag = [m*0.15e-6 for m in mag]
+        t = time_tracker.get(ts)
+        if t is not None:
+            #print 'MPU', i, t, acc, temp, gyro, mag
+            imu_writers[i].writerow([t] + acc + gyro + mag)
     
-    with open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb') as altitude_file, \
-        open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb') as binr_file, \
-        open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.csv', 'wb') as pos_file, \
-        open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.kml', 'wb') as kml_file:
+    altitude_file = open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb')
+    binr_file = open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb')
+    pos_file = open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.csv', 'wb')
+    kml_file = open(sys.argv[1].rsplit('.', 1)[0] + '_unprocessed_pos.kml', 'wb')
+    imu_files = [open(sys.argv[1].rsplit('.', 1)[0] + 'imu%i.csv' % (i,), 'wb') for i in xrange(4)]
         
-        altitude_writer = csv.writer(altitude_file)
-        altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m', 'GPS height/m'])
-        
-        pos_writer = csv.writer(pos_file)
-        pos_writer.writerow(['GPS Time/s', 'Latitude/deg', 'Longitude/deg', 'Height/m'])
-        
-        kml_file.write('''<?xml version="1.0" encoding="UTF-8"?>
+    altitude_writer = csv.writer(altitude_file)
+    altitude_writer.writerow(['GPS Time/s', 'Temperature/C', 'Pressure/Pa', 'Altitude/m', 'GPS height/m'])
+    
+    pos_writer = csv.writer(pos_file)
+    pos_writer.writerow(['GPS Time/s', 'Latitude/deg', 'Longitude/deg', 'Height/m'])
+    
+    imu_writers = map(csv.writer, imu_files)
+    for w in imu_writers:
+        w.writerow(['GPS Time/s', 'X acceleration/(m/s^2)', 'Y acceleration/(m/s^2)', 'Z acceleration/(m/s^2)', 'X angular velocity/(rad/s)', 'Y angular velocity/(rad/s)', 'Z angular velocity/(rad/s)', 'X magnetic field/(tesla)', 'Y magnetic field/(tesla)', 'Z magnetic field/(tesla)'])
+    
+    kml_file.write('''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://earth.google.com/kml/2.1">
 <Document>
 <Style id="P0">
@@ -195,77 +198,81 @@ def packet_handler():
 <altitudeMode>absolute</altitudeMode>
 <coordinates>
 ''')
-        kml_lines = []
-        kml_wrote = False
-        
-        prom = None
-        last_gps_time = None
-        countdown = 10
-        try:
-            while True:
-                id_, payload = yield
-                if id_ == 0:
-                    if ord(payload[0]) == 1: # barometer prom
-                        prom = struct.unpack('>8H', payload[1:])
-                    elif ord(payload[0]) == 4: # baro + 4x IMU
-                        assert len(payload) == 1 + 6 + 4 * 14, len(payload)
-                        handle_baro(payload[1:7])
-                        for i in xrange(4):
-                            handle_mpu(i, payload[7+i*14:7+i*14+14])
-                    else:
-                        assert False, ord(payload[0])
-                elif id_ == 0xF5: # raw GPS measurements
-                    tow, week = struct.unpack('<dH', payload[:10])
-                    s = 315964800 + 24*60*60*7 * (1024+week) + tow/1000
-                    if last_gps_time is not None and abs(s-last_gps_time - .1) > .11:
-                        print s - last_gps_time
-                    last_gps_time = s
+    kml_lines = []
+    kml_wrote = False
+    
+    prom = None
+    countdown = 10
+    last_ts = None
+    try:
+        while True:
+            ts = last_ts
+            last_ts = None
+            id_, payload = yield
+            if id_ == 0:
+                if ord(payload[0]) == 1: # barometer prom
+                    prom = struct.unpack('>8H', payload[1:])
+                elif ord(payload[0]) == 4: # baro + 4x IMU
+                    assert len(payload) == 1 + 6 + 4 * (14+8), len(payload)
+                    handle_baro(ts, payload[1:7])
+                    for i in xrange(4):
+                        handle_mpu(ts, i, payload[7+i*(14+8):7+(i+1)*(14+8)])
+                elif ord(payload[0]) == 5:
+                    last_ts, = struct.unpack('<Q', payload[1:9])
+                    last_ts *= 1e-6
+                else:
+                    assert False, ord(payload[0])
+            elif id_ == 0xF5: # raw GPS measurements
+                tow, week = struct.unpack('<dH', payload[:10])
+                gps_time = 315964800 + 24*60*60*7 * (1024+week) + tow/1000
+                
+                res = payload[:27]
+                
+                if len(payload[27:]) % 30 != 0:
+                    print 'misshapen'
+                    continue
+                assert len(payload[27:]) % 30 == 0, len(payload[27:])
+                sats = []
+                for i in xrange(len(payload[27:]) // 30):
+                    d = payload[27+30*i:27+30*i+30]
+                    (sig_type, sat_num, carrier_num, snr,
+                        carrier_phase, pseudo_range, doppler_freq,
+                        flags, _reserved) = struct.unpack('<BBbBdddBB', d)
+                    if sig_type != 0x02: continue
+                    assert flags & 0x01
+                    if not flags & 0x02:
+                        pseudo_range = doppler_freq = None
+                    if not flags & 0x08:
+                        carrier_phase = None
+                    if not flags & 0x10:
+                        pseudo_range = None
+                        doppler_freq = None
                     
-                    res = payload[:27]
-                    
-                    if len(payload[27:]) % 30 != 0:
-                        print 'misshapen'
-                        continue
-                    assert len(payload[27:]) % 30 == 0, len(payload[27:])
-                    sats = []
-                    for i in xrange(len(payload[27:]) // 30):
-                        d = payload[27+30*i:27+30*i+30]
-                        (sig_type, sat_num, carrier_num, snr,
-                            carrier_phase, pseudo_range, doppler_freq,
-                            flags, _reserved) = struct.unpack('<BBbBdddBB', d)
-                        if sig_type != 0x02: continue
-                        assert flags & 0x01
-                        if not flags & 0x02:
-                            pseudo_range = doppler_freq = None
-                        if not flags & 0x08:
-                            carrier_phase = None
-                        if not flags & 0x10:
-                            pseudo_range = None
-                            doppler_freq = None
-                        
-                        if carrier_phase is not None:
-                            res += d
-                            sats.append(snr)
-                    if countdown:
-                        countdown -= 1
-                    else:
-                        write_packet(binr_file, id_, res)
-                        #print repr(s), time.asctime(time.gmtime(s)), sorted(sats)
-                elif id_ == 0x88:
-                    latitude_rad, longitude_rad, height_m, rms_pos_error_m, tow_ms_IM, tow_ms_se, WN, lat_vel, lon_vel, alt_vel, dev_m, status = struct.unpack('<dddfQHhdddfB', payload)
-                    tow_ms_M = tow_ms_IM & (2**63-1)
-                    tow_ms_s = tow_ms_se>>15
-                    tow_ms_e = tow_ms_se & 0x7fff
-                    if 0 < tow_ms_e < 32767: tow_ms = -1**(tow_ms_s) * 2**(tow_ms_e-16383.) * (1 + tow_ms_M/2**63)
-                    else: tow_ms = -1**(tow_ms_s) * 2**-16382 * (tow_ms_M/2**63)
-                    
-                    if status & 0b1:
-                        pos_writer.writerow([WN * (24*60*60*7) + tow_ms*1e-3, math.degrees(latitude_rad), math.degrees(longitude_rad), height_m])
-                        kml_file.write('%f,%f,%f\n' % (math.degrees(longitude_rad), math.degrees(latitude_rad), height_m))
-                        kml_lines.append('%f,%f,%f' % (math.degrees(longitude_rad), math.degrees(latitude_rad), height_m))
-                        kml_wrote = True
-                    elif kml_wrote:
-                        kml_file.write('''</coordinates>
+                    if carrier_phase is not None:
+                        res += d
+                        sats.append(snr)
+                if countdown:
+                    countdown -= 1
+                else:
+                    write_packet(binr_file, id_, res)
+                    #print repr(s), time.asctime(time.gmtime(s)), sorted(sats)
+            elif id_ == 0x88:
+                latitude_rad, longitude_rad, height_m, rms_pos_error_m, tow_ms_IM, tow_ms_se, WN, lat_vel, lon_vel, alt_vel, dev_m, status = struct.unpack('<dddfQHhdddfB', payload)
+                tow_ms_M = tow_ms_IM & (2**63-1)
+                tow_ms_s = tow_ms_se>>15
+                tow_ms_e = tow_ms_se & 0x7fff
+                if 0 < tow_ms_e < 32767: tow_ms = (-1)**(tow_ms_s) * 2**(tow_ms_e-16383.) * (1 + tow_ms_M/2**63)
+                else: tow_ms = (-1)**(tow_ms_s) * 2**-16382 * (tow_ms_M/2**63)
+                
+                if status & 0b1:
+                    gps_time = 315964800 + (1024 + WN) * (24*60*60*7) + tow_ms*1e-3
+                    time_tracker.update(gps_time, ts)
+                    pos_writer.writerow([gps_time, math.degrees(latitude_rad), math.degrees(longitude_rad), height_m])
+                    kml_file.write('%f,%f,%f\n' % (math.degrees(longitude_rad), math.degrees(latitude_rad), height_m))
+                    kml_lines.append('%f,%f,%f' % (math.degrees(longitude_rad), math.degrees(latitude_rad), height_m))
+                    kml_wrote = True
+                elif kml_wrote:
+                    kml_file.write('''</coordinates>
 </LineString>
 </Placemark>
 <Placemark>
@@ -279,21 +286,21 @@ def packet_handler():
 <altitudeMode>absolute</altitudeMode>
 <coordinates>
 ''')
-                        kml_wrote = False
-                else:
-                    pass # ignore all other standard BINR messages
-                    #write_packet(binr_file, id_, payload)
-        finally:
-            kml_file.write('''</coordinates>
+                    kml_wrote = False
+            else:
+                pass # ignore all other standard BINR messages
+                #write_packet(binr_file, id_, payload)
+    finally:
+        kml_file.write('''</coordinates>
 </LineString>
 </Placemark>
 ''')
-            if 1:
-                kml_file.write('''<Folder>
+        if 1:
+            kml_file.write('''<Folder>
   <name>Rover Position</name>
 ''')
-                for l in kml_lines[::10]:
-                    kml_file.write('''
+            for l in kml_lines[::10]:
+                kml_file.write('''
 <Placemark>
 <styleUrl>#P2</styleUrl>
 <Point>
@@ -301,9 +308,9 @@ def packet_handler():
 </Point>
 </Placemark>
 ''' % (l,))
-                kml_file.write('''</Folder>
+            kml_file.write('''</Folder>
 ''')
-            kml_file.write('''</Document>
+        kml_file.write('''</Document>
 </kml>
 ''')
 

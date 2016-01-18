@@ -173,7 +173,7 @@ static void sensors_main() {
                 buf[2+2*i+0] = prom[i] >> 8;
                 buf[2+2*i+1] = prom[i] & 255;
             }
-            while(!gps_write_packet(buf, sizeof(buf))) {
+            while(!gps_write_stamped_packet(buf, sizeof(buf))) {
                 // make sure this is logged
                 yield_delay(0.1);
             }
@@ -228,7 +228,7 @@ static void sensors_main() {
             memcpy(packet + 2 + 2*3 + i * (14 + 8), buf, sizeof(buf));
         }
         
-        if(!gps_write_packet(packet, sizeof(packet))) {
+        if(!gps_write_stamped_packet(packet, sizeof(packet))) {
             set_led_color(1, 1, 0);
         }
         
