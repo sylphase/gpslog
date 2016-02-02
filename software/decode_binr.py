@@ -10,6 +10,298 @@ import time
 import calendar
 import bisect
 
+sinc = lambda x: math.sin(x)/x if x else 1
+sincsqrt = lambda x: math.sin(math.sqrt(x))/math.sqrt(x) if x else 1
+cossqrt = lambda x: math.cos(math.sqrt(x))
+sign_never_0 = lambda x: 1 if x >= 0 else -1
+sincacos_clipping = lambda x: sinc(math.acos(min(x, 1)))
+if_positive = lambda x, y, z: y if x >= 0 else z
+
+# epsilon for testing whether a number is close to zero
+_EPS = 8.8817841970012523e-16
+
+# axis sequences for Euler angles
+_NEXT_AXIS = [1, 2, 0, 1]
+
+# map axes strings to/from tuples of inner axis, parity, repetition, frame
+_AXES2TUPLE = {
+    'sxyz': (0, 0, 0, 0), 'sxyx': (0, 0, 1, 0), 'sxzy': (0, 1, 0, 0),
+    'sxzx': (0, 1, 1, 0), 'syzx': (1, 0, 0, 0), 'syzy': (1, 0, 1, 0),
+    'syxz': (1, 1, 0, 0), 'syxy': (1, 1, 1, 0), 'szxy': (2, 0, 0, 0),
+    'szxz': (2, 0, 1, 0), 'szyx': (2, 1, 0, 0), 'szyz': (2, 1, 1, 0),
+    'rzyx': (0, 0, 0, 1), 'rxyx': (0, 0, 1, 1), 'ryzx': (0, 1, 0, 1),
+    'rxzx': (0, 1, 1, 1), 'rxzy': (1, 0, 0, 1), 'ryzy': (1, 0, 1, 1),
+    'rzxy': (1, 1, 0, 1), 'ryxy': (1, 1, 1, 1), 'ryxz': (2, 0, 0, 1),
+    'rzxz': (2, 0, 1, 1), 'rxyz': (2, 1, 0, 1), 'rzyz': (2, 1, 1, 1)}
+
+def euler_from_matrix(matrix, axes='sxyz'):
+    """Return Euler angles from rotation matrix for specified axis sequence.
+
+    axes : One of 24 axis sequences as string or encoded tuple
+
+    Note that many Euler angle triplets can describe one matrix.
+
+    >>> R0 = euler_matrix(1, 2, 3, 'syxz')
+    >>> al, be, ga = euler_from_matrix(R0, 'syxz')
+    >>> R1 = euler_matrix(al, be, ga, 'syxz')
+    >>> numpy.allclose(R0, R1)
+    True
+    >>> angles = (4*math.pi) * (numpy.random.random(3) - 0.5)
+    >>> for axes in _AXES2TUPLE.keys():
+    ...    R0 = euler_matrix(axes=axes, *angles)
+    ...    R1 = euler_matrix(axes=axes, *euler_from_matrix(R0, axes))
+    ...    if not numpy.allclose(R0, R1): print(axes, "failed")
+
+    """
+    try:
+        firstaxis, parity, repetition, frame = _AXES2TUPLE[axes.lower()]
+    except (AttributeError, KeyError):
+        _TUPLE2AXES[axes]  # validation
+        firstaxis, parity, repetition, frame = axes
+
+    i = firstaxis
+    j = _NEXT_AXIS[i+parity]
+    k = _NEXT_AXIS[i-parity+1]
+
+    M = matrix
+    if repetition:
+        sy = math.sqrt(M[i][j]*M[i][j] + M[i][k]*M[i][k])
+        if sy > _EPS:
+            ax = math.atan2( M[i][j],  M[i][k])
+            ay = math.atan2( sy,       M[i][i])
+            az = math.atan2( M[j][i], -M[k][i])
+        else:
+            ax = math.atan2(-M[j][k],  M[j][j])
+            ay = math.atan2( sy,       M[i][i])
+            az = 0.0
+    else:
+        cy = math.sqrt(M[i][i]*M[i][i] + M[j][i]*M[j][i])
+        if cy > _EPS:
+            ax = math.atan2( M[k][j],  M[k][k])
+            ay = math.atan2(-M[k][i],  cy)
+            az = math.atan2( M[j][i],  M[i][i])
+        else:
+            ax = math.atan2(-M[j][k],  M[j][j])
+            ay = math.atan2(-M[k][i],  cy)
+            az = 0.0
+
+    if parity:
+        ax, ay, az = -ax, -ay, -az
+    if frame:
+        ax, az = az, ax
+    return ax, ay, az
+
+class V(tuple):
+    def __init__(self, x):
+        tuple.__init__(x)
+        for y in x: assert isinstance(y, (int, float))
+    
+    def __neg__(self): return V(-x for x in self)
+    def __pos__(self): return self
+    def __add__(self, other):
+        if isinstance(other, V) and len(other) == len(self):
+            return V(a+b for a, b in zip(self, other))
+        else:
+            return NotImplemented
+    def __sub__(self, other):
+        if isinstance(other, V) and len(other) == len(self):
+            return V(a-b for a, b in zip(self, other))
+        else:
+            return NotImplemented
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return V(a*other for a in self)
+        elif isinstance(other, V) and len(other) == len(self):
+            return sum(a*b for a, b in zip(self, other))
+        elif isinstance(other, Matrix) and other.rows == 1:
+            return Matrix([[a*b for b in other._contents[0]] for a in self])
+        else:
+            return NotImplemented
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return V(other*a for a in self)
+        elif isinstance(other, Matrix) and other.cols == len(self):
+            return self.__class__(V(row)*self for row in other)
+        else:
+            return NotImplemented
+    def __truediv__(self, other):
+        if isinstance(other, (int, float)):
+            return V(a/other for a in self)
+        else:
+            return NotImplemented
+    
+    def __mod__(self, other): # cross product
+        if isinstance(other, self.__class__) and len(self) == 3 and len(other) == 3:
+            (x, y, z), (X, Y, Z) = self, other
+            return self.__class__([y*Z-z*Y, z*X-x*Z, x*Y-y*X])
+        else:
+            return NotImplemented
+    
+    @property
+    def as_row_matrix(self):
+        return Matrix([list(self)])
+    @property
+    def as_diagonal_matrix(self):
+        return Matrix([[self[i] if i == j else 0 for j in xrange(len(self))] for i in xrange(len(self))])
+    @property
+    def as_scalar(self):
+        assert len(self) == 1
+        return self[0]
+    
+    def __repr__(self):
+        return 'v%s' % tuple.__repr__(self)
+    
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return V(tuple.__getitem__(self, item))
+        else:
+            return tuple.__getitem__(self, item)
+    def __getslice__(self, i, j):
+        return self.__getitem__(slice(i, j))
+    
+    def norm(self):
+        return math.sqrt(self*self)
+    def norm2(self):
+        return self*self
+    def unit(self):
+        return self/self.norm()
+def v(*args):
+    return V(args)
+
+class Quaternion(object):
+    def __init__(self, **kwargs):
+        assert set(kwargs.keys()) == {'w', 'x', 'y', 'z'}
+        for x in kwargs.values(): assert isinstance(x, (int, float))
+        self.__dict__.update(kwargs)
+    
+    def __repr__(self):
+        return 'Quaternion(w=%r, x=%r, y=%r, z=%r)' % (self.w, self.x, self.y, self.z)
+    
+    @classmethod
+    def from_axisangle(cls, axis, angle):
+        assert isinstance(axis, V) and len(axis) == 3
+        v = math.sin(angle/2) * axis.unit()
+        return cls(w=math.cos(angle/2), x=v[0], y=v[1], z=v[2])
+
+    @classmethod
+    def from_rotvec(cls, r):
+        assert isinstance(r, V) and len(r) == 3
+        angle2 = r.norm2()
+        v = r * (sincsqrt(angle2*.25)*.5)
+        return cls(w=cossqrt(angle2*.25), x=v[0], y=v[1], z=v[2])
+    
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__class__(**{k: v*other for k, v in self.__dict__.iteritems()})
+        else:
+            return NotImplemented
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__class__(**{k: other*v for k, v in self.__dict__.iteritems()})
+        else:
+            return NotImplemented
+    
+    def __mod__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(
+                w=other.w * self.w - other.x * self.x - other.y * self.y -  other.z * self.z,
+                x=other.x * self.w + other.w * self.x + other.z * self.y -  other.y * self.z,
+                y=other.y * self.w - other.z * self.x + other.w * self.y +  other.x * self.z,
+                z=other.z * self.w + other.y * self.x - other.x * self.y +  other.w * self.z,
+            )
+        else:
+            return NotImplemented
+    
+    @property
+    def norm_squared(self):
+        return self.w*self.w + self.x*self.x + self.y*self.y + self.z*self.z
+    
+    @property
+    def conj(self):
+        return self.__class__(w=self.w, x=-self.x, y=-self.y, z=-self.z)
+    @property
+    def normalized(self):
+        norm = math.sqrt(sum(x**2 for x in self.__dict__.itervalues()))
+        return self * (1/norm)
+    
+    @property
+    def as_matrix(self):
+        return [
+            [1 - 2*self.y*self.y - 2*self.z*self.z,     2*self.x*self.y - 2*self.z*self.w,     2*self.x*self.z + 2*self.y*self.w],
+            [    2*self.x*self.y + 2*self.z*self.w, 1 - 2*self.x*self.x - 2*self.z*self.z,     2*self.y*self.z - 2*self.x*self.w],
+            [    2*self.x*self.z - 2*self.y*self.w,     2*self.y*self.z + 2*self.x*self.w, 1 - 2*self.x*self.x - 2*self.y*self.y],
+        ]
+    
+    @property
+    def as_axisangle(self):
+        self = self.unit()
+        if self.w < 0:
+            self = -self
+        return v(self.x, self.y, self.z).unit(), math.acos(self.w) * 2
+    @property
+    def as_rotvec(self): # q must be normalized already
+        self *= sign_never_0(self.w) # make sure that q.w is positive
+        return 2/sincacos_clipping(self.w) * v(self.x, self.y, self.z)
+    
+    def rotate(self, v):
+        assert isinstance(v, V) and len(v) == 3
+        r = self % self.__class__(w=0, x=v[0], y=v[1], z=v[2]) % self.conj
+        return V((r.x, r.y, r.z))
+
+def triad(v1_world, v2_world, v1_body, v2_body):
+    # from "Fast Quaternion Attitude Estimation From Two Vector Measurements"
+    # requires all vectors to be normalized
+    # XXX has singularity at 180 deg rotation TODO: work around by rotating everything
+    
+    b1, b2 = v1_body, v2_body
+    r1, r2 = v1_world, v2_world
+    
+    mu = (1 + b1 * r1) * ((b1 % b2) * (r1 % r2)) - (b1 * (r1 % r2)) * (r1 * (b1 % b2))
+    v = (b1 + r1) * ((b1 % b2) % (r1 % r2))
+    
+    rho = math.sqrt(mu**2 + v**2)
+    
+    q_scale = 1/(2*math.sqrt(rho * (rho + abs(mu)) * (1 + b1 * r1)))
+    
+    q_vector_if_mu_pos = q_scale * ((rho + mu)*(b1 % r1) + v*(b1 + r1))
+    q_scalar_if_mu_pos = q_scale * (rho + mu) * (1 + b1 * r1)
+    
+    q_vector_if_mu_neg = q_scale * (v*(b1 % r1) + (rho - mu)*(b1 + r1))
+    q_scalar_if_mu_neg = q_scale * v * (1 + b1 * r1)
+    
+    q_scalar = if_positive(mu, q_scalar_if_mu_pos, q_scalar_if_mu_neg)
+    q_vector = V(if_positive(mu, a, b) for a, b in zip(q_vector_if_mu_pos, q_vector_if_mu_neg))
+    
+    return Quaternion(w=q_scalar, **dict(zip('xyz', q_vector)))
+
+class IMUSolver(object):
+    def __init__(self, dt):
+        self.dt = dt
+        self.orientation = None
+        self.mag_min = None
+    def handle(self, acc, gyro, mag):
+        if self.mag_min is None:
+            self.mag_min = mag
+            self.mag_max = mag
+        self.mag_min = map(min, self.mag_min, mag)
+        self.mag_max = map(max, self.mag_max, mag)
+        if any(a == b for a, b in zip(self.mag_min, self.mag_max)): return None
+        mag_corrected = [(m - lo)/(hi - lo) - 0.5 for m, lo, hi in zip(mag, self.mag_min, self.mag_max)]
+        measurement = triad(v(0, 0, 1), v(0, 1, 0), V(acc).unit(), V(mag_corrected).unit())
+        print mag, mag_corrected
+        if self.orientation is None:
+            self.orientation = measurement
+            res = self.orientation
+        else:
+            self.orientation = self.orientation % Quaternion.from_rotvec(V(gyro) * (self.dt/2))
+            error = (measurement % self.orientation.conj).as_rotvec
+            self.orientation = Quaternion.from_rotvec(error * (self.dt/3)) % self.orientation
+            res = self.orientation
+            self.orientation = self.orientation % Quaternion.from_rotvec(V(gyro) * (self.dt/2))
+        self.orientation = self.orientation.normalized
+        if res.w < 0: res *= -1
+        return res
+
 class TimeTracker(object):
     def __init__(self):
         self._offset = None
@@ -53,6 +345,7 @@ def write_packet(f, id_, msg):
 
 def packet_handler():
     time_tracker = TimeTracker()
+    imu_solvers = [IMUSolver(.1) for i in xrange(4)]
     
     def handle_baro(ts, data):
         assert len(data) == 6
@@ -113,18 +406,20 @@ def packet_handler():
     def handle_mpu(ts, i, data):
         if data.encode('hex') == 'ffffffffffffffffffffffffffffffffffffffffffff': return
         t = time_tracker.get(ts)
-        accx, accy, accz, temp, gyrox, gyroy, gyroz, mag_st1, magx, magy, magz, mag_st2 = struct.unpack('>7hB3hB', data);
+        accx, accy, accz, temp, gyrox, gyroy, gyroz = struct.unpack('>7h', data[:14])
+        mag_st1, magx, magy, magz, mag_st2 = struct.unpack('<B3hB', data[14:])
         acc = accx, accy, accz
         acc = [a/16384 * 9.80665 for a in acc]
         temp = temp/333.87 + 21
         gyro = gyrox, gyroy, gyroz
         gyro = [g/131 * math.pi/180 for g in gyro]
-        mag = magx, magy, magz
+        mag = magy, magx, -magz
         mag = [m*0.15e-6 for m in mag]
+        q = imu_solvers[i].handle(acc, gyro, mag)
         t = time_tracker.get(ts)
         if t is not None:
             #print 'MPU', i, t, acc, temp, gyro, mag
-            imu_writers[i].writerow([t] + acc + gyro + mag)
+            imu_writers[i].writerow([t] + acc + gyro + mag + ([q.w, q.x, q.y, q.z] + list(map(math.degrees, euler_from_matrix(q.as_matrix))) if q is not None else ['']*7))
     
     altitude_file = open(sys.argv[1].rsplit('.', 1)[0] + '_altitude.csv', 'wb')
     binr_file = open(sys.argv[1].rsplit('.', 1)[0] + '_fixed.binr', 'wb')
@@ -140,7 +435,7 @@ def packet_handler():
     
     imu_writers = map(csv.writer, imu_files)
     for w in imu_writers:
-        w.writerow(['GPS Time/s', 'X acceleration/(m/s^2)', 'Y acceleration/(m/s^2)', 'Z acceleration/(m/s^2)', 'X angular velocity/(rad/s)', 'Y angular velocity/(rad/s)', 'Z angular velocity/(rad/s)', 'X magnetic field/(tesla)', 'Y magnetic field/(tesla)', 'Z magnetic field/(tesla)'])
+        w.writerow(['GPS Time/s', 'X acceleration/(m/s^2)', 'Y acceleration/(m/s^2)', 'Z acceleration/(m/s^2)', 'X angular velocity/(rad/s)', 'Y angular velocity/(rad/s)', 'Z angular velocity/(rad/s)', 'X magnetic field/(tesla)', 'Y magnetic field/(tesla)', 'Z magnetic field/(tesla)', 'Quaternion w', 'Quaternion x', 'Quaternion y', 'Quaternion z', 'Roll/deg', 'Pitch/deg', 'Yaw/deg'])
     
     kml_file.write('''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://earth.google.com/kml/2.1">
